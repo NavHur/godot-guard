@@ -123,6 +123,7 @@ version = "0.7.0"
 dependencies = [
  "gdscript",
  "pycompat",
+ "rayon",
  "serde",
  "serde_json",
 ]
