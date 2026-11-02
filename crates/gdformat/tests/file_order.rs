@@ -101,3 +101,20 @@ fn in_place_a_file_named_twice_is_reformatted_once() {
         FORMATTED
     );
 }
+
+/// Between the 2 MiB worker stack (overflows from about 11,000) and the 8 MiB one (from about 45,000).
+const NESTED_PARENS: usize = 25_000;
+
+#[test]
+fn deeply_nested_code_checks_without_overflowing_a_worker() {
+    let dir = project("deep");
+    let code = format!(
+        "func f():\n\tvar x = {}1{}\n",
+        "(".repeat(NESTED_PARENS),
+        ")".repeat(NESTED_PARENS)
+    );
+    std::fs::write(dir.join("deep.gd"), code).unwrap();
+    let (stdout, stderr, status) = gdformat(&["--check".to_owned(), "deep.gd".to_owned()], &dir);
+    assert!(stderr.starts_with("would reformat deep.gd\n"), "{stderr}");
+    assert_eq!((stdout.as_str(), status), ("", 1));
+}
