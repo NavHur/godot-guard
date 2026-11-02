@@ -54,6 +54,37 @@ fn check_reports_in_file_order_up_to_the_stop() {
     assert_eq!((stdout.as_str(), status), ("", 1));
 }
 
+/// Parses, then panics in the formatter: "no handler for pattern".
+const PANICS_IN_MATCH: &str = "func f(x):\n\tmatch x:\n\t\t1, 2, 3:\n";
+/// Parses, then panics in the formatter: "child 1 of property_custom_getter out of range".
+const PANICS_IN_GETTER: &str = "var a: int = 0:\n\tset(value):\n\t\ta = value\n\tget:\n";
+
+#[test]
+fn a_panic_surfaces_after_the_reports_before_it() {
+    let dir = project("panic");
+    let names: Vec<String> = (0..40).map(|i| format!("f{i:02}.gd")).collect();
+    for (i, name) in names.iter().enumerate() {
+        let code = match i {
+            10 => PANICS_IN_MATCH,
+            25 => PANICS_IN_GETTER,
+            _ if i % 3 == 0 => UNFORMATTED,
+            _ => FORMATTED,
+        };
+        std::fs::write(dir.join(name), code).unwrap();
+    }
+    let mut args = vec!["--check".to_owned()];
+    args.extend(names.iter().cloned());
+    let (stdout, stderr, status) = gdformat(&args, &dir);
+    let mut expected: String = (0..10)
+        .step_by(3)
+        .map(|i| format!("would reformat f{i:02}.gd\n"))
+        .collect();
+    expected
+        .push_str("Traceback: gdformat crashed: format_func_statement: no handler for pattern\n");
+    assert_eq!(stderr, expected);
+    assert_eq!((stdout.as_str(), status), ("", 1));
+}
+
 #[test]
 fn in_place_a_file_named_twice_is_reformatted_once() {
     let dir = project("twice");
