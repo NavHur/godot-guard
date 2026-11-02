@@ -106,14 +106,16 @@ fn lint_paths(
     let files = find_gd_files_from_paths(paths, &config.excluded_directories, cwd);
     // Files lint in parallel; reports are written in order, up to the file where gdlint would stop.
     // A panic is held until the files before it have reported.
-    let linted: Vec<std::thread::Result<Linted>> = files
-        .par_iter()
-        .map(|file_path| {
-            catch_unwind(AssertUnwindSafe(|| {
-                lint_file(file_path, cwd, &config, parse)
-            }))
-        })
-        .collect();
+    let linted: Vec<std::thread::Result<Linted>> = worker_pool().install(|| {
+        files
+            .par_iter()
+            .map(|file_path| {
+                catch_unwind(AssertUnwindSafe(|| {
+                    lint_file(file_path, cwd, &config, parse)
+                }))
+            })
+            .collect()
+    });
     let mut problems_total = 0;
     for file in linted {
         let file = file.unwrap_or_else(|panic| resume_unwind(panic));
@@ -124,6 +126,17 @@ fn lint_paths(
         }
     }
     summary(problems_total, out, err)
+}
+
+/// The main thread's stack size, which the workers match so deeply nested files lint as they did serially.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
+/// A pool whose workers have the main thread's stack; failing to spawn them has no output-preserving fallback.
+fn worker_pool() -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new()
+        .stack_size(WORKER_STACK_BYTES)
+        .build()
+        .expect("spawning the lint worker threads")
 }
 
 /// The config, logging to `out` as `--verbose` does; an error is a failure to write the log.

@@ -82,3 +82,34 @@ fn a_panic_surfaces_after_the_reports_before_it() {
     let expected: Vec<&str> = names[..10].iter().map(String::as_str).collect();
     assert_eq!(reported, expected, "{stderr}");
 }
+
+/// Nested parens deep enough to overflow a 2 MiB rayon worker stack but not the main thread's 8 MiB.
+const NESTED_PARENS: usize = 40_000;
+
+#[test]
+fn deeply_nested_code_lints_without_overflowing_a_worker() {
+    let dir = std::env::temp_dir().join(format!("gdlint-deep-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let code = format!(
+        "func f():\n\tvar x = {}1{}\n",
+        "(".repeat(NESTED_PARENS),
+        ")".repeat(NESTED_PARENS)
+    );
+    std::fs::write(dir.join("deep.gd"), code).unwrap();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let status = run(
+        &["deep.gd".to_owned()],
+        &dir,
+        &gdscript::parse,
+        &mut out,
+        &mut err,
+    )
+    .unwrap();
+    let stderr = String::from_utf8(err).unwrap();
+    let expected = "deep.gd:2: Error: Max allowed line length (100) exceeded (max-line-length)\nFailure: 1 problem found\n";
+    assert_eq!(
+        (out.as_slice(), stderr.as_str(), status),
+        (&b""[..], expected, 1)
+    );
+}
