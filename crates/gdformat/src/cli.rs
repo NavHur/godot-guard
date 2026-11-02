@@ -341,10 +341,12 @@ fn prepare_files<'a>(
 ) -> Box<dyn Iterator<Item = Prepared> + 'a> {
     match check {
         true => {
-            let all: Vec<Prepared> = files
-                .par_iter()
-                .map(|file| prepare_file(file, read_text, options, cwd))
-                .collect();
+            let all: Vec<Prepared> = worker_pool().install(|| {
+                files
+                    .par_iter()
+                    .map(|file| prepare_file(file, read_text, options, cwd))
+                    .collect()
+            });
             Box::new(all.into_iter())
         }
         false => Box::new(
@@ -353,6 +355,15 @@ fn prepare_files<'a>(
                 .map(|file| prepare_file(file, read_text_for_update, options, cwd)),
         ),
     }
+}
+
+/// The main thread's stack size, matched by the workers so the recursive formatter has the same room.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
+/// Workers with the main thread's stack; a spawn failure has no output-preserving fallback.
+fn worker_pool() -> rayon::ThreadPool {
+    let builder = rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK_BYTES);
+    builder.build().expect("spawning the format worker threads")
 }
 
 /// One file read and formatted, before anything is printed or written; a panic is held until the files
