@@ -1,5 +1,7 @@
 //! gdlint lints files in parallel: its report must still follow the files' order and stop where a file
-//! stops gdlint.
+//! stops gdlint, a panic included.
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use gdlint::cli::run;
 
@@ -39,4 +41,44 @@ fn reports_in_file_order_up_to_the_stop() {
             .contains("UnicodeDecodeError")
     );
     assert_eq!((out.as_slice(), status), (&b""[..], 1));
+}
+
+/// The checks panic where the Python crashes with a traceback. The files before the first such file
+/// still report, then that file's panic is the one raised, whichever panic finishes first.
+#[test]
+fn a_panic_surfaces_after_the_reports_before_it() {
+    let dir = std::env::temp_dir().join(format!("gdlint-panic-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let names: Vec<String> = (0..40).map(|i| format!("f{i:02}.gd")).collect();
+    for (i, name) in names.iter().enumerate() {
+        let code = match i {
+            10 => "# first panic\n".to_owned(),
+            25 => "# second panic\n".to_owned(),
+            _ => BAD_NAME.to_owned(),
+        };
+        std::fs::write(dir.join(name), code).unwrap();
+    }
+    let parse = |code: &str| {
+        if code.contains("# first panic") {
+            panic!("first");
+        }
+        if code.contains("# second panic") {
+            panic!("second");
+        }
+        gdscript::parse(code)
+    };
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        run(&names, &dir, &parse, &mut out, &mut err)
+    }));
+    let payload = result.expect_err("the panic reaches the caller");
+    assert_eq!(payload.downcast_ref::<&str>(), Some(&"first"));
+    let stderr = String::from_utf8(err).unwrap();
+    let reported: Vec<&str> = stderr
+        .lines()
+        .map(|line| line.split(':').next().unwrap())
+        .collect();
+    let expected: Vec<&str> = names[..10].iter().map(String::as_str).collect();
+    assert_eq!(reported, expected, "{stderr}");
 }

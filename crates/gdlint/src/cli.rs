@@ -5,6 +5,7 @@
 //! existing file), this prints a one-line error instead, with the same status, 1.
 
 use std::io::{self, Write};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::path::Path;
 
 use gdscript::{ParseError, Tree};
@@ -103,14 +104,19 @@ fn lint_paths(
         }
     };
     let files = find_gd_files_from_paths(paths, &config.excluded_directories, cwd);
-    // Files lint independently, so they lint in parallel; their reports are written in order, up to
-    // the file where gdlint would stop.
-    let linted: Vec<Linted> = files
+    // Files lint in parallel; reports are written in order, up to the file where gdlint would stop.
+    // A panic is held until the files before it have reported.
+    let linted: Vec<std::thread::Result<Linted>> = files
         .par_iter()
-        .map(|file_path| lint_file(file_path, cwd, &config, parse))
+        .map(|file_path| {
+            catch_unwind(AssertUnwindSafe(|| {
+                lint_file(file_path, cwd, &config, parse)
+            }))
+        })
         .collect();
     let mut problems_total = 0;
     for file in linted {
+        let file = file.unwrap_or_else(|panic| resume_unwind(panic));
         err.write_all(file.report.as_bytes())?;
         match file.problems {
             Some(count) => problems_total += count,
