@@ -310,7 +310,11 @@ fn format_files(
     cwd: &Path,
     io: &mut Io,
 ) -> io::Result<i32> {
-    let prepare = |file_path: &String| prepare_file(file_path, arguments.check, options, cwd);
+    let read: Reader = match arguments.check {
+        true => read_text,
+        false => read_text_for_update,
+    };
+    let prepare = |file_path: &String| prepare_file(file_path, read, options, cwd);
     // `--check` writes nothing, so the files format in parallel. In place, each file is read after the
     // previous one is written, as a file named twice must see its first write.
     let prepared: Box<dyn Iterator<Item = Prepared>> = match arguments.check {
@@ -344,11 +348,10 @@ fn format_files(
 /// before it have printed.
 type Prepared = std::thread::Result<Result<FileFormatting, ReadError>>;
 
-fn prepare_file(file_path: &str, check: bool, options: &Options, cwd: &Path) -> Prepared {
-    let read = match check {
-        true => read_text,
-        false => read_text_for_update,
-    };
+/// How a file is opened: for reading when checking, for reading and writing when formatting in place.
+type Reader = fn(&Path) -> Result<String, ReadError>;
+
+fn prepare_file(file_path: &str, read: Reader, options: &Options, cwd: &Path) -> Prepared {
     let path = path_under(cwd, file_path);
     catch_unwind(AssertUnwindSafe(|| {
         read(&path).map(|code| format_file(&code, options, file_path))
