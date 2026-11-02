@@ -4,7 +4,7 @@ use std::any::Any;
 use std::fmt::Display;
 use std::io::{self, Read, Write};
 use std::ops::AddAssign;
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::path::Path;
 
 use pycompat::builtins::{
@@ -12,6 +12,7 @@ use pycompat::builtins::{
 };
 use pycompat::os::strerror;
 use pycompat::utils::find_gd_files_from_paths;
+use rayon::prelude::*;
 
 use crate::args::{Arguments, USAGE, parse_arguments};
 use crate::config::{CONFIG_FILE_NAME, Config, DEFAULT_CONFIG_YAML, find_config_file, load_config};
@@ -309,10 +310,11 @@ fn format_files(
     cwd: &Path,
     io: &mut Io,
 ) -> io::Result<i32> {
+    let prepared = prepare_files(files, arguments.check, options, cwd);
     let mut total = Counts::default();
     let mut stdout = DeferredStdout::default();
-    for file_path in files {
-        let Some(counts) = format_one_file(file_path, arguments, options, cwd, io) else {
+    for (file_path, prepared) in files.iter().zip(prepared) {
+        let Some(counts) = format_one_file(file_path, prepared, arguments, cwd, io) else {
             return stdout.finish(1);
         };
         if counts.formatted > 0 && !arguments.check {
@@ -329,22 +331,68 @@ fn format_files(
     stdout.finish(summary.exit_status)
 }
 
+/// The files read and formatted, in order. `--check` writes nothing, so they format in parallel; in place,
+/// each is read after the previous one is written, as a file named twice must see its first write.
+fn prepare_files<'a>(
+    files: &'a [String],
+    check: bool,
+    options: &'a Options,
+    cwd: &'a Path,
+) -> Box<dyn Iterator<Item = Prepared> + 'a> {
+    match check {
+        true => {
+            let all: Vec<Prepared> = worker_pool().install(|| {
+                files
+                    .par_iter()
+                    .map(|file| prepare_file(file, read_text, options, cwd))
+                    .collect()
+            });
+            Box::new(all.into_iter())
+        }
+        false => Box::new(
+            files
+                .iter()
+                .map(|file| prepare_file(file, read_text_for_update, options, cwd)),
+        ),
+    }
+}
+
+/// The main thread's stack size, matched by the workers so the recursive formatter has the same room.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
+/// Workers with the main thread's stack; a spawn failure has no output-preserving fallback.
+fn worker_pool() -> rayon::ThreadPool {
+    let builder = rayon::ThreadPoolBuilder::new().stack_size(WORKER_STACK_BYTES);
+    builder.build().expect("spawning the format worker threads")
+}
+
+/// One file read and formatted, before anything is printed or written; a panic is held until the files
+/// before it have printed.
+type Prepared = std::thread::Result<Result<FileFormatting, ReadError>>;
+
+/// How a file is opened: for reading when checking, for reading and writing when formatting in place.
+type Reader = fn(&Path) -> Result<String, ReadError>;
+
+fn prepare_file(file_path: &str, read: Reader, options: &Options, cwd: &Path) -> Prepared {
+    let path = path_under(cwd, file_path);
+    catch_unwind(AssertUnwindSafe(|| {
+        read(&path).map(|code| format_file(&code, options, file_path))
+    }))
+}
+
 /// `_check_files_formatting` and `_format_files` for one file, writing the formatted code back unless
 /// checking: its share of the counts, or None when gdformat would stop with a traceback.
 fn format_one_file(
     file_path: &str,
+    prepared: Prepared,
     arguments: &Arguments,
-    options: &Options,
     cwd: &Path,
     io: &mut Io,
 ) -> Option<Counts> {
     let path = path_under(cwd, file_path);
-    let read = match arguments.check {
-        true => read_text,
-        false => read_text_for_update,
-    };
-    let code = match read(&path) {
-        Ok(code) => code,
+    let formatted = prepared.unwrap_or_else(|panic| resume_unwind(panic));
+    let outcome = match formatted {
+        Ok(outcome) => outcome,
         Err(ReadError::Io(error)) => {
             report_cannot_open(file_path, &error, io);
             return Some(FAILED);
@@ -357,7 +405,6 @@ fn format_one_file(
             return None;
         }
     };
-    let outcome = format_file(&code, options, file_path);
     if let Some(message) = &outcome.error_message {
         let _ = io.stderr.write_all(message.as_bytes());
     }

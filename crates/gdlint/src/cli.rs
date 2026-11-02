@@ -5,6 +5,7 @@
 //! existing file), this prints a one-line error instead, with the same status, 1.
 
 use std::io::{self, Write};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::path::Path;
 
 use gdscript::{ParseError, Tree};
@@ -12,6 +13,7 @@ use pycompat::builtins::{ReadError, path_under, read_text, repr};
 use pycompat::os::strerror;
 use pycompat::utils::find_gd_files_from_paths;
 use pycompat::yaml::{Value, value_repr};
+use rayon::prelude::*;
 
 use crate::config::{self, CONFIG_FILE_NAME, Config, ConfigError};
 use crate::docopt::{self, Command};
@@ -101,14 +103,40 @@ fn lint_paths(
             return Ok(1);
         }
     };
+    let files = find_gd_files_from_paths(paths, &config.excluded_directories, cwd);
+    // Files lint in parallel; reports are written in order, up to the file where gdlint would stop.
+    // A panic is held until the files before it have reported.
+    let linted: Vec<std::thread::Result<Linted>> = worker_pool().install(|| {
+        files
+            .par_iter()
+            .map(|file_path| {
+                catch_unwind(AssertUnwindSafe(|| {
+                    lint_file(file_path, cwd, &config, parse)
+                }))
+            })
+            .collect()
+    });
     let mut problems_total = 0;
-    for file_path in find_gd_files_from_paths(paths, &config.excluded_directories, cwd) {
-        match lint_file(&file_path, cwd, &config, parse, err)? {
+    for file in linted {
+        let file = file.unwrap_or_else(|panic| resume_unwind(panic));
+        err.write_all(file.report.as_bytes())?;
+        match file.problems {
             Some(count) => problems_total += count,
             None => return Ok(1),
         }
     }
     summary(problems_total, out, err)
+}
+
+/// The main thread's stack size, which the workers match so deeply nested files lint as they did serially.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
+/// A pool whose workers have the main thread's stack; failing to spawn them has no output-preserving fallback.
+fn worker_pool() -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new()
+        .stack_size(WORKER_STACK_BYTES)
+        .build()
+        .expect("spawning the lint worker threads")
 }
 
 /// The config, logging to `out` as `--verbose` does; an error is a failure to write the log.
@@ -151,44 +179,51 @@ fn dump_default_config(cwd: &Path, err: &mut dyn Write) -> io::Result<i32> {
     Ok(0)
 }
 
-/// `_lint_file`: the problems counted for one file, or None when gdlint would stop with a traceback.
-fn lint_file(
-    file_path: &str,
-    cwd: &Path,
-    config: &Config,
-    parse: &Parse,
-    err: &mut dyn Write,
-) -> io::Result<Option<usize>> {
+/// One file's lint, before anything is written.
+struct Linted {
+    /// What gdlint writes to stderr for the file.
+    report: String,
+    /// The problems counted, or None when gdlint would stop with a traceback after the report.
+    problems: Option<usize>,
+}
+
+/// `_lint_file`: what one file reports and counts.
+fn lint_file(file_path: &str, cwd: &Path, config: &Config, parse: &Parse) -> Linted {
+    let stop = |report: String| Linted {
+        report,
+        problems: None,
+    };
+    let count = |report: String, problems: usize| Linted {
+        report,
+        problems: Some(problems),
+    };
     let content = match read_text(&path_under(cwd, file_path)) {
         Ok(content) => content,
         Err(ReadError::Utf8(utf8)) => {
-            writeln!(
-                err,
-                "{file_path}: UnicodeDecodeError: 'utf-8' codec can't decode the file: {utf8}"
-            )?;
-            return Ok(None);
+            return stop(format!(
+                "{file_path}: UnicodeDecodeError: 'utf-8' codec can't decode the file: {utf8}\n"
+            ));
         }
         Err(ReadError::Io(error)) => {
-            writeln!(err, "Cannot open file '{file_path}': {}", strerror(&error))?;
-            return Ok(Some(1));
+            return count(
+                format!("Cannot open file '{file_path}': {}\n", strerror(&error)),
+                1,
+            );
         }
     };
     let tree = match parse(&content) {
         Ok(tree) => tree,
-        Err(error) => match parse_error::report(&error, &content) {
-            Ok(report) => {
-                writeln!(err, "{file_path}:\n\n{report}")?;
-                return Ok(Some(1));
-            }
-            Err(exception) => {
-                writeln!(err, "{file_path}: {exception}")?;
-                return Ok(None);
-            }
-        },
+        Err(error) => {
+            return match parse_error::report(&error, &content) {
+                Ok(report) => count(format!("{file_path}:\n\n{report}\n"), 1),
+                Err(exception) => stop(format!("{file_path}: {exception}\n")),
+            };
+        }
     };
     let problems = crate::lint_code(&content, &tree, config);
-    for problem in &problems {
-        writeln!(err, "{}", Printed { problem, file_path })?;
-    }
-    Ok(Some(problems.len()))
+    let report = problems
+        .iter()
+        .map(|problem| format!("{}\n", Printed { problem, file_path }))
+        .collect();
+    count(report, problems.len())
 }
