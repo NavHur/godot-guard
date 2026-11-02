@@ -310,20 +310,7 @@ fn format_files(
     cwd: &Path,
     io: &mut Io,
 ) -> io::Result<i32> {
-    let read: Reader = match arguments.check {
-        true => read_text,
-        false => read_text_for_update,
-    };
-    let prepare = |file_path: &String| prepare_file(file_path, read, options, cwd);
-    // `--check` writes nothing, so the files format in parallel. In place, each file is read after the
-    // previous one is written, as a file named twice must see its first write.
-    let prepared: Box<dyn Iterator<Item = Prepared>> = match arguments.check {
-        true => {
-            let all: Vec<Prepared> = files.par_iter().map(prepare).collect();
-            Box::new(all.into_iter())
-        }
-        false => Box::new(files.iter().map(prepare)),
-    };
+    let prepared = prepare_files(files, arguments.check, options, cwd);
     let mut total = Counts::default();
     let mut stdout = DeferredStdout::default();
     for (file_path, prepared) in files.iter().zip(prepared) {
@@ -342,6 +329,30 @@ fn format_files(
     stdout.write(io.stdout, &summary.stdout);
     let _ = io.stderr.write_all(summary.stderr.as_bytes());
     stdout.finish(summary.exit_status)
+}
+
+/// The files read and formatted, in order. `--check` writes nothing, so they format in parallel; in place,
+/// each is read after the previous one is written, as a file named twice must see its first write.
+fn prepare_files<'a>(
+    files: &'a [String],
+    check: bool,
+    options: &'a Options,
+    cwd: &'a Path,
+) -> Box<dyn Iterator<Item = Prepared> + 'a> {
+    match check {
+        true => {
+            let all: Vec<Prepared> = files
+                .par_iter()
+                .map(|file| prepare_file(file, read_text, options, cwd))
+                .collect();
+            Box::new(all.into_iter())
+        }
+        false => Box::new(
+            files
+                .iter()
+                .map(|file| prepare_file(file, read_text_for_update, options, cwd)),
+        ),
+    }
 }
 
 /// One file read and formatted, before anything is printed or written; a panic is held until the files
