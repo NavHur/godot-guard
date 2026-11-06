@@ -11,4 +11,4 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: PedroNavHur/fleet/.github/actions/file-size@main
+      - uses: NavHur/actions/file-size@main
