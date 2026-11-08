@@ -241,20 +241,21 @@ class Analyzer:
     # Branches
 
     def visit_if_stmt(self, node) -> None:
-        for branch in node.children:
-            if not is_tree(branch):
-                continue
-            if branch.data == "if_branch":
-                self.scorer.structural()
-            else:
-                self.scorer.fundamental()
-            if branch.data == "else_branch":
-                self.nested_children(branch.children)
-                continue
-            self.scorer.decision()
-            condition, *body = branch.children
-            self.walk(condition)
-            self.nested_children(body)
+        for branch in (child for child in node.children if is_tree(child)):
+            self.if_branch(branch)
+
+    def if_branch(self, branch) -> None:
+        if branch.data == "if_branch":
+            self.scorer.structural()
+        else:
+            self.scorer.fundamental()
+        if branch.data == "else_branch":
+            self.nested_children(branch.children)
+            return
+        self.scorer.decision()
+        condition, *body = branch.children
+        self.walk(condition)
+        self.nested_children(body)
 
     def visit_loop(self, node) -> None:
         self.scorer.structural()
@@ -303,12 +304,15 @@ class Analyzer:
             return
         self.seen_boolean.add(id(node))
         for child in node.children:
-            if is_tree(child):
-                self.flatten(child, operators)
-            elif token_text(child) in ("or", "||"):
-                operators.append("or")
-            elif token_text(child) in ("and", "&&"):
-                operators.append("and")
+            self.flatten_boolean_child(child, operators)
+
+    def flatten_boolean_child(self, child, operators: list[str]) -> None:
+        if is_tree(child):
+            self.flatten(child, operators)
+            return
+        operator = {"or": "or", "||": "or", "and": "and", "&&": "and"}.get(token_text(child))
+        if operator:
+            operators.append(operator)
 
     def visit_boolean(self, node) -> None:
         own = [child for child in node.children if not is_tree(child) and token_text(child) in ("or", "||", "and", "&&")]
@@ -335,7 +339,10 @@ def nested_ternaries(tree) -> list[int]:
         if node.data not in TERNARY:
             pending.extend(child for child in node.children if is_tree(child))
             continue
-        inner = (child for child in node.iter_subtrees() if child is not node and child.data in TERNARY)
-        if next(inner, None) is not None:
+        if contains_ternary(node):
             found.append(node.meta.line)
     return sorted(found)
+
+
+def contains_ternary(node) -> bool:
+    return any(child is not node and child.data in TERNARY for child in node.iter_subtrees())
