@@ -288,34 +288,39 @@ fn boundary_problems(config: &Config, path: &str, source: &str) -> Result<Vec<Pr
 }
 
 fn boundary_hits(entry: &Boundary, path: &str, lines: &[&str]) -> Result<Vec<Problem>> {
-    let suffix = if entry.message.is_empty() {
-        String::new()
-    } else {
-        format!("; {}", entry.message)
-    };
     let mut problems = Vec::new();
     for (index, code) in lines.iter().enumerate() {
         for pattern in &entry.forbid {
-            let found = pattern
-                .find(code)
-                .map_err(|e| Failure::crash(format!("boundary {}", entry.name), e))?;
-            if let Some(found) = found {
-                let message = format!(
-                    "{}: '{}' is forbidden here{suffix}",
-                    entry.name,
-                    found.as_str()
-                );
-                problems.push(Problem::new(
-                    path,
-                    index + 1,
-                    message,
-                    "boundary",
-                    Level::Error,
-                ));
-            }
+            let found = forbidden_match(entry, pattern, code)?;
+            let problem =
+                |message| Problem::new(path, index + 1, message, "boundary", Level::Error);
+            problems.extend(found.map(problem));
         }
     }
     Ok(problems)
+}
+
+/// The report for the first match of a forbidden `pattern` in `code`, if it has one.
+fn forbidden_match(
+    entry: &Boundary,
+    pattern: &fancy_regex::Regex,
+    code: &str,
+) -> Result<Option<String>> {
+    let found = pattern
+        .find(code)
+        .map_err(|e| Failure::crash(format!("boundary {}", entry.name), e))?;
+    Ok(found.map(|found| {
+        let suffix = if entry.message.is_empty() {
+            String::new()
+        } else {
+            format!("; {}", entry.message)
+        };
+        format!(
+            "{}: '{}' is forbidden here{suffix}",
+            entry.name,
+            found.as_str()
+        )
+    }))
 }
 
 /// Everything but the interface item, which waits for the Resource map.
