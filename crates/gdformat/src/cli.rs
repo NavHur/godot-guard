@@ -175,12 +175,8 @@ pub fn run(args: &[String], cwd: &Path, io: &mut Io) -> io::Result<i32> {
         Ok(arguments) => arguments,
         Err(exit) => return exit.print(io),
     };
-    if arguments.dump_default_config {
-        return Ok(dump_default_config(cwd, io));
-    }
-    if arguments.diff {
-        let _ = writeln!(io.stderr, "gdformat: --diff is not supported by this port");
-        return Ok(2);
+    if let Some(status) = status_without_formatting(&arguments, cwd, io) {
+        return Ok(status);
     }
     let config = match load_config(find_config_file(cwd).as_deref()) {
         Ok(config) => config,
@@ -191,13 +187,38 @@ pub fn run(args: &[String], cwd: &Path, io: &mut Io) -> io::Result<i32> {
     };
     let options = resolve_options(&arguments, &config);
     let files = find_gd_files_from_paths(&arguments.paths, &config.excluded_directories, cwd);
-    let outcome = catch_unwind(AssertUnwindSafe(|| match files.as_slice() {
-        [only] if only == "-" => format_stdin(&options, io),
-        _ => format_files(&files, &arguments, &options, cwd, io),
+    let outcome = catch_unwind(AssertUnwindSafe(|| {
+        format_inputs(&files, &arguments, &options, cwd, io)
     }));
     let status = outcome.unwrap_or_else(|panic| Ok(report_crash(&*panic, io)))?;
     io.stdout.flush()?;
     Ok(status)
+}
+
+/// The exit status of the options that format nothing (`--dump-default-config`, `--diff`), or None.
+fn status_without_formatting(arguments: &Arguments, cwd: &Path, io: &mut Io) -> Option<i32> {
+    if arguments.dump_default_config {
+        return Some(dump_default_config(cwd, io));
+    }
+    if arguments.diff {
+        let _ = writeln!(io.stderr, "gdformat: --diff is not supported by this port");
+        return Some(2);
+    }
+    None
+}
+
+/// STDIN when the only path is `-`, the files otherwise.
+fn format_inputs(
+    files: &[String],
+    arguments: &Arguments,
+    options: &Options,
+    cwd: &Path,
+    io: &mut Io,
+) -> io::Result<i32> {
+    match files {
+        [only] if only == "-" => format_stdin(options, io),
+        _ => format_files(files, arguments, options, cwd, io),
+    }
 }
 
 /// `--dump-default-config`: write `gdformatrc` in `cwd`; returns the exit status.
@@ -322,13 +343,18 @@ fn format_files(
         }
         total += counts;
     }
-    let summary = match arguments.check {
-        true => check_summary(files.len(), total.formatted, total.failed),
-        false => format_summary(files.len(), total.formatted, total.failed),
-    };
+    let summary = summarize(arguments.check, files.len(), total);
     stdout.write(io.stdout, &summary.stdout);
     let _ = io.stderr.write_all(summary.stderr.as_bytes());
     stdout.finish(summary.exit_status)
+}
+
+/// What is printed after the files, and the exit status.
+fn summarize(check: bool, files: usize, total: Counts) -> Summary {
+    match check {
+        true => check_summary(files, total.formatted, total.failed),
+        false => format_summary(files, total.formatted, total.failed),
+    }
 }
 
 /// The files read and formatted, in order. `--check` writes nothing, so they format in parallel; in place,
