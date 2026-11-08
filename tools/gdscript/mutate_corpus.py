@@ -27,17 +27,21 @@ def mutate(text, rng):
         at = rng.randrange(len(text) + 1)
         return text[:at] + rng.choice(INSERTS) + text[at:]
     line = rng.randrange(len(lines))
+    if kind not in (2, 3, 4, 5):
+        return text[: rng.randrange(len(text) + 1)]
+    edit_line(lines, line, kind, rng)
+    return "\n".join(lines)
+
+
+def edit_line(lines, line, kind, rng):
     if kind == 2:
         lines[line] = rng.choice(["\t", " ", "  "]) + lines[line]
     elif kind == 3:
         lines[line] = lines[line][1:]
     elif kind == 4:
         lines.insert(line, lines[line])
-    elif kind == 5:
-        del lines[line]
     else:
-        return text[: rng.randrange(len(text) + 1)]
-    return "\n".join(lines)
+        del lines[line]
 
 
 def main():
