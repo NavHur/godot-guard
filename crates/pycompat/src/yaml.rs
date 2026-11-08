@@ -384,6 +384,48 @@ mod tests {
     }
 
     #[test]
+    fn explicit_integers_follow_pyyaml_signs_and_bases() {
+        let value = one(
+            "[!!int -0b11, !!int +0x1f, !!int -017, !!int '-1:30', !!int 1_0, !!int +0, !!int -0]",
+        );
+        assert_eq!(
+            value,
+            Value::List([-3, 31, -15, -90, 10, 0, 0].map(Value::Int).into())
+        );
+        for text in [
+            "!!int 0xZZ",
+            "!!int 99999999999999999999",
+            "!!int 019",
+            "!!int 1:x",
+            "!!int ''",
+        ] {
+            let message = load(text).expect_err(text).to_string();
+            assert!(
+                message.starts_with("invalid or out-of-range integer"),
+                "{text}: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn collection_tags_pick_the_collection_or_refuse() {
+        assert_eq!(one("!!map {a: 1}"), one("{a: 1}"));
+        assert_eq!(one("!!seq [1]"), one("[1]"));
+        assert_eq!(one("! {a: 1}"), one("{a: 1}"));
+        assert_eq!(one("!!set {a}"), Value::Set(vec![Value::Str("a".into())]));
+        for text in [
+            "!!set [1]",
+            "!!map [1]",
+            "!!seq {a: 1}",
+            "!!str {a: 1}",
+            "!custom [1]",
+        ] {
+            let message = load(text).expect_err(text).to_string();
+            assert!(message.starts_with("unsupported tag"), "{text}: {message}");
+        }
+    }
+
+    #[test]
     fn set_tag_keeps_keys_in_order_and_repeated_keys_keep_first_position() {
         assert_eq!(
             one("a: !!set\n  .git: null\n  .godot:\nb: 1\na: 2\n"),

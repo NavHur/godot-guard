@@ -169,6 +169,21 @@ mod tests {
     }
 
     #[test]
+    fn float_repr_covers_zero_non_finite_and_exponent_edges() {
+        assert_eq!(float_repr(0.0), "0.0");
+        assert_eq!(float_repr(-0.0), "-0.0");
+        assert_eq!(float_repr(f64::NAN), "nan");
+        assert_eq!(float_repr(f64::INFINITY), "inf");
+        assert_eq!(float_repr(123.456), "123.456");
+        assert_eq!(float_repr(9.99e15), "9990000000000000.0");
+        assert_eq!(float_repr(-1.5e-7), "-1.5e-07");
+        assert_eq!(float_repr(1e22), "1e+22");
+        assert_eq!(float_repr(5e-324), "5e-324");
+        assert_eq!(float_repr(-1e100), "-1e+100");
+        assert_eq!(float_repr(2.5e-5), "2.5e-05");
+    }
+
+    #[test]
     fn repr_matches_python() {
         assert_eq!(repr("abc"), "'abc'");
         assert_eq!(repr("a.gd::gone"), "'a.gd::gone'");

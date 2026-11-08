@@ -88,6 +88,17 @@ mod tests {
     }
 
     #[test]
+    fn splitlines_pairs_only_cr_with_a_following_lf() {
+        assert_eq!(splitlines("a\r"), ["a"]);
+        assert_eq!(splitlines("a\r\n"), ["a"]);
+        assert_eq!(splitlines("\r\n\r\n"), ["", ""]);
+        assert_eq!(splitlines("\r\r\n"), ["", ""]);
+        assert_eq!(splitlines("\n\r"), ["", ""]);
+        assert_eq!(splitlines("a\u{85}b\u{2029}"), ["a", "b"]);
+        assert_eq!(splitlines("\r\nx"), ["", "x"]);
+    }
+
+    #[test]
     fn space_and_strip_match_python() {
         assert!(is_space('\u{1f}') && is_space('\u{a0}') && !is_space('\u{200b}'));
         assert_eq!(strip("\u{1c} a \u{3000}"), "a");
