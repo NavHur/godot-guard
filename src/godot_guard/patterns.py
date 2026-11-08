@@ -43,6 +43,10 @@ def called_name(node) -> str:
     target = node.children[0] if node.data == "getattr_call" else None
     if not (is_tree(target) and target.data == "getattr"):
         return ""
+    return last_attribute_name(target)
+
+
+def last_attribute_name(target) -> str:
     names = [str(child) for child in target.children if not is_tree(child) and child.type == "NAME"]
     return names[-1] if names else ""
 
@@ -55,6 +59,10 @@ def hot_hit(node, function: str) -> tuple[str, str] | None:
         return "lookup-in-hot-path", f"{what} inside {function}(): resolve it once into an @onready var or in _ready()"
     if called == "load":
         return "load-in-hot-path", f"load() inside {function}() reads the resource each call: preload it or load it once"
+    return allocation_hit(node, called, function)
+
+
+def allocation_hit(node, called: str, function: str) -> tuple[str, str] | None:
     what = LITERALS.get(node.data) or (".new()" if called == "new" else "")
     if what and function in FRAME_FUNCTIONS:
         return "per-frame-allocation", f"{what} inside {function}() allocates every frame; reuse one if it does not change"
@@ -104,14 +112,14 @@ def is_export(annotation) -> bool:
 
 def exported_variables(body) -> list:
     """`class_var_stmt` nodes in one class body that carry an @export annotation."""
-    exported, found = False, []
-    for child in (c for c in body.children if is_tree(c)):
+    annotations, found = [], []
+    for child in subtrees(body):
         if child.data == "annotation":
-            exported = exported or is_export(child)
+            annotations.append(child)
             continue
-        if exported and child.data == "class_var_stmt":
+        if child.data == "class_var_stmt" and any(map(is_export, annotations)):
             found.append(child)
-        exported = False
+        annotations = []
     return found
 
 
