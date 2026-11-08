@@ -55,6 +55,38 @@ fn type_hints_take_brackets_whole_or_not_at_all() {
 }
 
 #[test]
+fn numbers_cover_each_lark_alternative() {
+    assert_eq!(m(Matcher::Number, "12_3 x"), Some("12_3"));
+    assert_eq!(m(Matcher::Number, "1e5e5"), Some("1e5"));
+    assert_eq!(m(Matcher::Number, "1.5e+2x"), Some("1.5e+2"));
+    assert_eq!(m(Matcher::Number, "1.5e"), Some("1.5"));
+    assert_eq!(m(Matcher::Number, ".5e3"), Some(".5e3"));
+    assert_eq!(m(Matcher::Number, "-.5e-1x"), Some("-.5e-1"));
+    assert_eq!(m(Matcher::Number, "+1e x"), Some("+1"));
+    assert_eq!(m(Matcher::Number, "1.2.3"), Some("1.2"));
+    for text in ["", "-", "e5", ".", "-.e5", ".x", "_1"] {
+        assert_eq!(m(Matcher::Number, text), None, "{text:?}");
+    }
+}
+
+#[test]
+fn type_hints_fall_back_to_the_bare_name() {
+    assert_eq!(m(Matcher::TypeHint, "A x"), Some("A"));
+    assert_eq!(m(Matcher::TypeHint, "A[B]"), Some("A[B]"));
+    assert_eq!(m(Matcher::TypeHint, "A[B,C]"), Some("A[B,C]"));
+    assert_eq!(m(Matcher::TypeHint, "A[B ,C]"), Some("A[B ,C]"));
+    assert_eq!(m(Matcher::TypeHint, "A[B, C]"), Some("A[B, C]"));
+    for text in [
+        "A[]", "A[B C]", "A[B,", "A[B,C", "A[B,C.]", "A[B,C D]", "A[B  ,C]",
+    ] {
+        assert_eq!(m(Matcher::TypeHint, text), Some("A"), "{text:?}");
+    }
+    for text in ["", "1a", "[B]", " A"] {
+        assert_eq!(m(Matcher::TypeHint, text), None, "{text:?}");
+    }
+}
+
+#[test]
 fn newlines_absorb_comments_and_indentation() {
     assert_eq!(m(Matcher::Newline, "# c\r\n\t x"), Some("# c\r\n\t "));
     assert_eq!(m(Matcher::Newline, "\r x"), None);
