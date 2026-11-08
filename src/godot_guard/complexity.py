@@ -25,6 +25,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 BOOLEAN = {"or_test": "or", "asless_or_test": "or", "and_test": "and", "asless_and_test": "and"}
+BOOLEAN_TOKENS = {"or": "or", "||": "or", "and": "and", "&&": "and"}
 TERNARY = {"test_expr", "asless_test_expr"}
 LOOPS = {"for_stmt", "for_stmt_typed", "while_stmt"}
 
@@ -310,12 +311,12 @@ class Analyzer:
         if is_tree(child):
             self.flatten(child, operators)
             return
-        operator = {"or": "or", "||": "or", "and": "and", "&&": "and"}.get(token_text(child))
+        operator = BOOLEAN_TOKENS.get(token_text(child))
         if operator:
             operators.append(operator)
 
     def visit_boolean(self, node) -> None:
-        own = [child for child in node.children if not is_tree(child) and token_text(child) in ("or", "||", "and", "&&")]
+        own = [child for child in node.children if not is_tree(child) and token_text(child) in BOOLEAN_TOKENS]
         if id(node) not in self.seen_boolean:
             operators: list[str] = []
             self.flatten(node, operators)

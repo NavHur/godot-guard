@@ -69,11 +69,15 @@ def allocation_hit(node, called: str, function: str) -> tuple[str, str] | None:
     return None
 
 
+def child_trees(node) -> list:
+    return [child for child in node.children if is_tree(child)]
+
+
 def subtrees(node) -> list:
     """The child subtrees of `node`; none for a `$` path, so `$%name` counts as one lookup."""
     if node.data == "get_node":
         return []
-    return [child for child in node.children if is_tree(child)]
+    return child_trees(node)
 
 
 def body_nodes(node):
@@ -113,7 +117,7 @@ def is_export(annotation) -> bool:
 def exported_variables(body) -> list:
     """`class_var_stmt` nodes in one class body that carry an @export annotation."""
     annotations, found = [], []
-    for child in subtrees(body):
+    for child in child_trees(body):
         if child.data == "annotation":
             annotations.append(child)
             continue
