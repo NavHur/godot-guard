@@ -123,7 +123,7 @@ pub enum Selection<'a> {
 }
 
 pub fn steps_for<'a>(plan: &'a Plan<'a>, files: &'a [String], depth: Depth) -> Vec<Step<'a>> {
-    let mut steps = quick_steps(plan, files);
+    let mut steps = fast_steps(plan, files);
     if depth == Depth::Full {
         steps.extend(full_steps(plan));
     }
@@ -131,7 +131,7 @@ pub fn steps_for<'a>(plan: &'a Plan<'a>, files: &'a [String], depth: Depth) -> V
 }
 
 /// The steps of the fast gate: format, lint, and check.
-fn quick_steps<'a>(plan: &'a Plan<'a>, files: &'a [String]) -> Vec<Step<'a>> {
+fn fast_steps<'a>(plan: &'a Plan<'a>, files: &'a [String]) -> Vec<Step<'a>> {
     let (gate, root) = (&plan.config.gate, &plan.sources.root);
     let mut steps = Vec::new();
     if gate.format {

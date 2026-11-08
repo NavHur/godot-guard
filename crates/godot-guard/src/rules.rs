@@ -291,7 +291,7 @@ fn boundary_hits(entry: &Boundary, path: &str, lines: &[&str]) -> Result<Vec<Pro
     let mut problems = Vec::new();
     for (index, code) in lines.iter().enumerate() {
         for pattern in &entry.forbid {
-            let found = forbidden_match(entry, pattern, code)?;
+            let found = forbidden_message(entry, pattern, code)?;
             let problem =
                 |message| Problem::new(path, index + 1, message, "boundary", Level::Error);
             problems.extend(found.map(problem));
@@ -301,7 +301,7 @@ fn boundary_hits(entry: &Boundary, path: &str, lines: &[&str]) -> Result<Vec<Pro
 }
 
 /// The report for the first match of a forbidden `pattern` in `code`, if it has one.
-fn forbidden_match(
+fn forbidden_message(
     entry: &Boundary,
     pattern: &fancy_regex::Regex,
     code: &str,
