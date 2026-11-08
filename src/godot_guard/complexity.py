@@ -243,9 +243,9 @@ class Analyzer:
 
     def visit_if_stmt(self, node) -> None:
         for branch in (child for child in node.children if is_tree(child)):
-            self.if_branch(branch)
+            self.score_if_branch(branch)
 
-    def if_branch(self, branch) -> None:
+    def score_if_branch(self, branch) -> None:
         if branch.data == "if_branch":
             self.scorer.structural()
         else:

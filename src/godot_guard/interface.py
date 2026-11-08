@@ -97,14 +97,14 @@ def read_exports(surface: Surface, line: str, pending: list[str]) -> list[str]:
     """Record an exported variable on `line`; return the annotations still waiting for a var."""
     annotations = re.findall(r"@(\w+)", line.split("var ", 1)[0]) if line.startswith("@") else []
     if is_variable(line):
-        record_export(surface, line, annotations + pending)
+        record_if_exported(surface, line, annotations + pending)
         return []
     if annotations and "var " not in line:
         return pending + [a for a in annotations if a not in NOT_VARIABLES]
     return []
 
 
-def record_export(surface: Surface, line: str, annotations: list[str]) -> None:
+def record_if_exported(surface: Surface, line: str, annotations: list[str]) -> None:
     if is_exported(annotations):
         surface.exports.append(re.search(r"var\s+(\w+)", line).group(1))
 
