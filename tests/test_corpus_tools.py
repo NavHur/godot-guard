@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+from tools.gdscript import mutate_corpus
 from tools.gdscript.mutate_corpus import mutate
 from tools.oracle import gdformat_cases
 
@@ -34,6 +36,38 @@ class MutationTest(unittest.TestCase):
         ]
         actual = [mutate("alpha\nbeta\ngamma", random.Random(seed)) for seed in range(16)]
         self.assertEqual(actual, expected)
+
+    def test_line_deletion_keeps_the_original_random_sequence(self):
+        actual = [mutate("alpha\nbeta\ngamma", random.Random(seed)) for seed in (19, 20, 24)]
+        self.assertEqual(actual, ["beta\ngamma", "alpha\nbeta", "alpha\ngamma"])
+
+    def test_one_generator_across_files_keeps_the_original_random_sequence(self):
+        sources = ["alpha\nbeta", "gamma", "one\ntwo\nthree"]
+        with tempfile.TemporaryDirectory() as root:
+            paths = []
+            for index, source in enumerate(sources):
+                path = Path(root) / f"source{index}.gd"
+                path.write_text(source, encoding="utf-8")
+                paths.append(str(path))
+            out = Path(root) / "out"
+            with mock.patch.object(mutate_corpus.sys, "argv", ["mutate_corpus.py", str(out), "10", "5", *paths]):
+                mutate_corpus.main()
+            actual = [path.read_text(encoding="utf-8") for path in sorted(out.glob("mutant_*.gd"))]
+        self.assertEqual(
+            actual,
+            [
+                "one\ntwo\n three",
+                "one\ntwo\nth",
+                "one\ntwothree",
+                "beta",
+                "alphabeta",
+                "gam",
+                "one\ntwo\ntree",
+                "alpa\nbeta",
+                " gamma",
+                "al",
+            ],
+        )
 
     def test_empty_input_keeps_the_same_insertions(self):
         actual = [mutate("", random.Random(seed)) for seed in range(8)]
@@ -68,18 +102,21 @@ class FormatterOracleTest(unittest.TestCase):
             ],
         )
 
-    def test_main_keeps_option_order_and_prints_records_in_pool_order(self):
+    def test_options_accept_flags_in_any_order_before_the_files(self):
+        args = ["--variants", "narrow,unfolded", "--formatted-trees", "--jobs", "2", "a.gd", "--jobs", "9"]
+        self.assertEqual(gdformat_cases.options(args), (True, 2, {"narrow", "unfolded"}, ["a.gd", "--jobs", "9"]))
+        self.assertEqual(gdformat_cases.options(["a.gd"]), (False, 4, None, ["a.gd"]))
+
+    def test_main_prints_each_files_records_in_file_order(self):
         output = io.StringIO()
-        args = ["gdformat_cases.py", "--formatted-trees", "--variants", "narrow,unfolded", "--jobs", "2", "a.gd"]
-        with (
-            mock.patch.object(gdformat_cases.sys, "argv", args),
-            mock.patch.object(gdformat_cases.multiprocessing, "Pool") as pool,
-            contextlib.redirect_stdout(output),
-        ):
-            pool.return_value.__enter__.return_value.imap.return_value = [["one", "two"], ["three"]]
-            gdformat_cases.main()
-        self.assertEqual(output.getvalue(), "one\ntwo\nthree\n")
-        pool.assert_called_once_with(2, initializer=gdformat_cases._init, initargs=(True, {"narrow", "unfolded"}))
-        pool.return_value.__enter__.return_value.imap.assert_called_once_with(
-            gdformat_cases.cases, ["a.gd"], chunksize=4
-        )
+        with tempfile.TemporaryDirectory() as root:
+            paths = []
+            for name in ("a.gd", "b.gd", "c.gd"):
+                path = Path(root) / name
+                path.write_text("extends Node\n", encoding="utf-8")
+                paths.append(str(path))
+            args = ["gdformat_cases.py", "--variants", "original", "--jobs", "2", *paths]
+            with mock.patch.object(gdformat_cases.sys, "argv", args), contextlib.redirect_stdout(output):
+                gdformat_cases.main()
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([record["id"] for record in records], [f"{path}#original" for path in paths])

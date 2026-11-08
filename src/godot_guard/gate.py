@@ -61,13 +61,13 @@ def steps_for(
 ) -> list[Step]:
     """`chosen` are the selected scripts, or None for every scanned one; `sources` roots the copy they are read from."""
     sources = sources or config
-    steps = prepare_steps(config, sources, chosen)
+    steps = shared_steps(config, sources, chosen)
     if not fast:
-        steps.extend(full_gate_steps(config))
+        steps.extend(full_only_steps(config))
     return steps
 
 
-def prepare_steps(config: Config, sources: Config, chosen: list[str] | None) -> list[Step]:
+def shared_steps(config: Config, sources: Config, chosen: list[str] | None) -> list[Step]:
     files = sources.scanned_files() if chosen is None else chosen
     gate, steps = config.gate, []
     if gate["format"]:
@@ -79,7 +79,7 @@ def prepare_steps(config: Config, sources: Config, chosen: list[str] | None) -> 
     return steps
 
 
-def full_gate_steps(config: Config) -> list[Step]:
+def full_only_steps(config: Config) -> list[Step]:
     steps = []
     for command in config.gate["steps"]:
         steps.append(Step(command, PREPARE, lambda echo, env, c=command: run_process(["/bin/sh", "-c", c], config.root, None, echo)))

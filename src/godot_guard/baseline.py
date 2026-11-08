@@ -156,7 +156,7 @@ def tighten(config: Config, data: dict, results: list[FileResult]) -> tuple[dict
     current, unparsed = measured(results)
     tightened, changes = empty(), []
     for rule, key, recorded in entries(data):
-        value = current_value(rule, key, recorded, current, unparsed)
+        value = measured_or_recorded(rule, key, recorded, current, unparsed)
         kept, change = settle(rule, key, recorded, value, limit(config, rule))
         if kept is not None:
             tightened[rule][key] = kept
@@ -165,7 +165,8 @@ def tighten(config: Config, data: dict, results: list[FileResult]) -> tuple[dict
     return tightened, changes
 
 
-def current_value(rule: str, key: str, recorded: int, current: dict, unparsed: set[str]) -> int | None:
+def measured_or_recorded(rule: str, key: str, recorded: int, current: dict, unparsed: set[str]) -> int | None:
+    """The measured value; the recorded one when the entry's file failed to parse and nothing was measured."""
     value = current.get((rule, key))
     if value is None and not in_scope(rule, key, None, unparsed):
         return recorded

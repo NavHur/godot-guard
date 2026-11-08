@@ -40,8 +40,10 @@ def edit_line(lines, line, kind, rng):
         lines[line] = lines[line][1:]
     elif kind == 4:
         lines.insert(line, lines[line])
-    else:
+    elif kind == 5:
         del lines[line]
+    else:
+        raise ValueError(f"not a line edit: {kind}")
 
 
 def main():
