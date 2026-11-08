@@ -111,15 +111,26 @@ fn add_standalone_comments(
         );
         let comments = remaining_comments[range.clone()].to_vec();
         remaining_comments.truncate(range.start);
-        let previous = &postprocessed_lines[postprocessed_lines.len() - 1].1;
-        let indent = get_greater_indent(&line, previous, context).to_owned();
-        for comment in comments.into_iter().rev().flatten() {
-            postprocessed_lines.push((None, format!("{indent}{comment}")));
-        }
-        postprocessed_lines.push((line_no, line));
+        push_line_below_comments((line_no, line), comments, &mut postprocessed_lines, context);
     }
     postprocessed_lines.reverse();
     postprocessed_lines
+}
+
+/// Pushes the standalone `comments` that sit above `line` and then `line`; the output runs bottom up, so
+/// the comments go last to first, indented as the greater of the line and the line below it.
+fn push_line_below_comments(
+    (line_no, line): (Option<i64>, String),
+    comments: Vec<Option<String>>,
+    postprocessed_lines: &mut FormattedLines,
+    context: &Context,
+) {
+    let previous = &postprocessed_lines[postprocessed_lines.len() - 1].1;
+    let indent = get_greater_indent(&line, previous, context).to_owned();
+    for comment in comments.into_iter().rev().flatten() {
+        postprocessed_lines.push((None, format!("{indent}{comment}")));
+    }
+    postprocessed_lines.push((line_no, line));
 }
 
 fn get_greater_indent<'l>(line_a: &'l str, line_b: &'l str, context: &Context) -> &'l str {

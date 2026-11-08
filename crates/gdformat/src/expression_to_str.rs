@@ -416,20 +416,20 @@ fn lambda_to_str(a_lambda: &Ex) -> String {
 }
 
 fn lambda_header_to_str(lambda_header: &Ex) -> String {
-    let has_name = lambda_header.child(0).is_token();
-    let optional_name = match has_name {
-        true => format!(" {}", lambda_header.child(0).value()),
-        false => String::new(),
+    let name = lambda_header.child(0);
+    let named = name.is_token();
+    let optional_name = if named {
+        format!(" {}", name.value())
+    } else {
+        String::new()
     };
-    let arguments = expression_to_str(&lambda_header.child(if has_name { 1 } else { 0 }));
-    let len = lambda_header.len();
-    let has_type_hint = len == 3 || (len == 2 && !has_name);
-    let optional_type_hint = match has_type_hint {
-        true => format!(
-            " -> {}",
-            lambda_header.child(if has_name { 2 } else { 1 }).value()
-        ),
-        false => String::new(),
+    let arguments_index = isize::from(named);
+    let arguments = expression_to_str(&lambda_header.child(arguments_index));
+    let type_hint_index = arguments_index + 1;
+    let optional_type_hint = if lambda_header.len() == usize::from(named) + 2 {
+        format!(" -> {}", lambda_header.child(type_hint_index).value())
+    } else {
+        String::new()
     };
     format!("func{optional_name}{arguments}{optional_type_hint}:")
 }
