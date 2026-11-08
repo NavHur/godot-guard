@@ -210,7 +210,7 @@ pub fn exported_variables(body: &Tree) -> Vec<&Tree> {
     let mut found = Vec::new();
     for child in body.subtrees() {
         if child.data == "annotation" {
-            exported = exported || is_export(child);
+            exported |= is_export(child);
             continue;
         }
         if exported && child.data == "class_var_stmt" {
