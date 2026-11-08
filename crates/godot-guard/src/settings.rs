@@ -1,7 +1,7 @@
 //! Validate a loaded `.godot-guard.yml` against the defaults, in 0.4.0's order and with its messages,
 //! and apply it to a `Config`.
 
-use crate::config::{AUTO, Boundary, CONFIG_NAME, Config, Gate, Jobs, Level, Limit, TestScript};
+use crate::config::{AUTO, Boundary, CONFIG_NAME, Config, Jobs, Level, Limit, TestScript};
 use crate::error::{Failure, Result};
 use crate::fnmatch::Pattern;
 use crate::godot_warnings;
@@ -320,32 +320,29 @@ fn validate_gate(config: &mut Config, given: &[(&str, &Value)]) -> Result<()> {
         ("import", &mut gate.import),
         ("analyzer", &mut gate.analyzer),
     ] {
-        if let Some(setting) = value(key) {
-            *flag = gate_flag(setting, key)?;
-        }
+        set_given(flag, value(key), |setting| gate_flag(setting, key))?;
     }
-    validate_gate_commands(gate, value)
+    set_given(&mut gate.jobs, value("jobs"), gate_jobs)?;
+    set_given(&mut gate.steps, value("steps"), |steps| {
+        string_list(steps, "gate.steps")
+    })?;
+    set_given(&mut gate.tests, value("tests"), gate_tests)?;
+    set_given(
+        &mut gate.test_commands,
+        value("test-commands"),
+        |commands| string_list(commands, "gate.test-commands"),
+    )?;
+    set_given(&mut gate.smoke, value("smoke"), gate_smoke)
 }
 
-/// The gate's jobs, step commands, tests, and smoke arguments.
-fn validate_gate_commands<'v>(
-    gate: &mut Gate,
-    value: impl Fn(&str) -> Option<&'v Value>,
+/// Replace `slot` with the parsed `setting` when the config gives one.
+fn set_given<T>(
+    slot: &mut T,
+    setting: Option<&Value>,
+    parse: impl FnOnce(&Value) -> Result<T>,
 ) -> Result<()> {
-    if let Some(jobs) = value("jobs") {
-        gate.jobs = gate_jobs(jobs)?;
-    }
-    if let Some(steps) = value("steps") {
-        gate.steps = string_list(steps, "gate.steps")?;
-    }
-    if let Some(tests) = value("tests") {
-        gate.tests = gate_tests(tests)?;
-    }
-    if let Some(commands) = value("test-commands") {
-        gate.test_commands = string_list(commands, "gate.test-commands")?;
-    }
-    if let Some(smoke) = value("smoke") {
-        gate.smoke = gate_smoke(smoke)?;
+    if let Some(setting) = setting {
+        *slot = parse(setting)?;
     }
     Ok(())
 }

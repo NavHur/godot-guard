@@ -248,6 +248,36 @@ fn badly_shaped_gate_settings_are_errors() {
 }
 
 #[test]
+fn the_first_badly_shaped_gate_setting_in_reading_order_is_reported() {
+    let cases = [
+        (
+            "smoke: true, steps: x, jobs: 0, lint: 1",
+            "gate.lint must be true or false",
+        ),
+        (
+            "smoke: true, steps: x, jobs: 0",
+            "gate.jobs must be a whole number of at least 1, or auto",
+        ),
+        (
+            "smoke: true, tests: x, steps: x",
+            "gate.steps must be a list of strings",
+        ),
+        (
+            "smoke: true, tests: x, test-commands: x",
+            "gate.tests must be a list",
+        ),
+        (
+            "smoke: true, test-commands: x",
+            "gate.test-commands must be a list of strings",
+        ),
+    ];
+    for (settings, message) in cases {
+        let error = error_of(&format!("gate: {{{settings}}}\n"));
+        assert_eq!(error, format!(".godot-guard.yml: {message}"), "{settings}");
+    }
+}
+
+#[test]
 fn bad_jobs_are_errors() {
     for value in ["0", "-1", "many", "true", "1.5", "'2'"] {
         let message = error_of(&format!("gate: {{jobs: {value}}}\n"));

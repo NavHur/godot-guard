@@ -248,7 +248,7 @@ fn walk_directory(root: &Path, directory: &Path, found: &mut Vec<String>) {
     };
     let mut subdirectories = Vec::new();
     for entry in listing.flatten() {
-        subdirectories.extend(list_entry(root, &entry, found));
+        subdirectories.extend(record_script_or_subdirectory(root, &entry, found));
     }
     subdirectories.sort();
     for name in subdirectories {
@@ -257,7 +257,11 @@ fn walk_directory(root: &Path, directory: &Path, found: &mut Vec<String>) {
 }
 
 /// Record a script entry in `found`; the name of a directory entry the walk enters.
-fn list_entry(root: &Path, entry: &fs::DirEntry, found: &mut Vec<String>) -> Option<String> {
+fn record_script_or_subdirectory(
+    root: &Path,
+    entry: &fs::DirEntry,
+    found: &mut Vec<String>,
+) -> Option<String> {
     let name = entry.file_name().to_string_lossy().into_owned();
     let path = entry.path();
     if path.is_dir() {
