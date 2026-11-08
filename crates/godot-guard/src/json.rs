@@ -86,30 +86,34 @@ fn write_object(out: &mut String, entries: &[(String, Json)], depth: usize, sort
 
 fn write_compact(out: &mut String, value: &Json) {
     match value {
-        Json::List(items) => {
-            out.push('[');
-            for (index, item) in items.iter().enumerate() {
-                if index > 0 {
-                    out.push_str(", ");
-                }
-                write_compact(out, item);
-            }
-            out.push(']');
-        }
-        Json::Object(entries) => {
-            out.push('{');
-            for (index, (key, item)) in entries.iter().enumerate() {
-                if index > 0 {
-                    out.push_str(", ");
-                }
-                write_string(out, key);
-                out.push_str(": ");
-                write_compact(out, item);
-            }
-            out.push('}');
-        }
+        Json::List(items) => write_compact_list(out, items),
+        Json::Object(entries) => write_compact_object(out, entries),
         scalar => write_value(out, scalar, 0, false),
     }
+}
+
+fn write_compact_list(out: &mut String, items: &[Json]) {
+    out.push('[');
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        write_compact(out, item);
+    }
+    out.push(']');
+}
+
+fn write_compact_object(out: &mut String, entries: &[(String, Json)]) {
+    out.push('{');
+    for (index, (key, item)) in entries.iter().enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        write_string(out, key);
+        out.push_str(": ");
+        write_compact(out, item);
+    }
+    out.push('}');
 }
 
 fn separate(out: &mut String, index: usize, depth: usize) {
