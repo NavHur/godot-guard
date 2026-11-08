@@ -102,20 +102,14 @@ pub fn prepend_annotations_to_formatted_line<'a>(
     let single_line_length = context.indent as i64
         + builtins::len(&annotations_string)
         + builtins::len(whitelineless_line);
-    // Check if this is an abstract function or class_name annotation
-    let lone_abstract = annotations.len() == 1 && annotations[0].child(0).value() == "abstract";
-    let is_abstract_func = lone_abstract && whitelineless_line.starts_with("func");
-    let is_abstract_class_name = lone_abstract && whitelineless_line.starts_with("class_name");
-    let standalone_formatting_enforced = (whitelineless_line.starts_with("func")
-        || whitelineless_line.starts_with("static func"))
-        && !is_abstract_func
-        && !is_abstract_class_name;
-    if !annotations_have_standalone_comments(
+    let standalone_comments = annotations_have_standalone_comments(
         &annotations,
         context.standalone_comments,
         line_to_prepend_to.0,
-    ) && single_line_length <= context.max_line_length
-        && !standalone_formatting_enforced
+    );
+    if !standalone_comments
+        && single_line_length <= context.max_line_length
+        && !standalone_formatting_enforced(&annotations, whitelineless_line)
     {
         let single_line = format!(
             "{}{annotations_string} {whitelineless_line}",
@@ -129,6 +123,13 @@ pub fn prepend_annotations_to_formatted_line<'a>(
     }
     formatted_lines.push(line_to_prepend_to);
     formatted_lines
+}
+
+/// A `func` is formatted with its annotations on their own lines, except a lone `@abstract` before a
+/// plain `func`; a `static func` keeps them apart even then.
+fn standalone_formatting_enforced(annotations: &[Ex], line: &str) -> bool {
+    let lone_abstract = annotations.len() == 1 && annotations[0].child(0).value() == "abstract";
+    line.starts_with("static func") || (line.starts_with("func") && !lone_abstract)
 }
 
 pub fn format_standalone_annotation<'a>(annotation: &Ex<'a>, context: &Context<'a>) -> Outcome {
