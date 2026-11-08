@@ -74,38 +74,33 @@ class MutationTest(unittest.TestCase):
         self.assertEqual(actual, ["", ",", "", "^", '"', "\n", "", " "])
 
 
+FOLDING_SOURCE = "var value = some_function(argument_one, argument_two, argument_three)\n"
+
+
 class FormatterOracleTest(unittest.TestCase):
     def test_unfolded_follows_narrow_and_filtered_variants_are_skipped(self):
-        variants = [
-            ("original", "code", 100, None),
-            ("invalid", None, 100, None),
-            ("narrow", "narrow code", 40, None),
-            ("spaces4", "spaces code", 100, 4),
-        ]
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "a.gd"
-            path.write_text("code", encoding="utf-8")
-            with (
-                mock.patch.object(gdformat_cases, "VARIANTS", {"narrow", "unfolded"}),
-                mock.patch.object(gdformat_cases, "variants", return_value=variants),
-                mock.patch.object(
-                    gdformat_cases, "case", side_effect=[{"expected": "folded"}, {"expected": "wide"}]
-                ) as case,
-            ):
-                records = gdformat_cases.cases(str(path))
-        self.assertEqual([json.loads(record) for record in records], [{"expected": "folded"}, {"expected": "wide"}])
-        self.assertEqual(
-            case.call_args_list,
-            [
-                mock.call(str(path), "narrow", "narrow code", 40, None),
-                mock.call(str(path), "unfolded", "folded", 100, None),
-            ],
-        )
+            path.write_text(FOLDING_SOURCE, encoding="utf-8")
+            with mock.patch.object(gdformat_cases, "VARIANTS", {"narrow", "unfolded"}):
+                records = [json.loads(record) for record in gdformat_cases.cases(str(path))]
+        self.assertEqual([record["variant"] for record in records], ["narrow", "unfolded"])
+        narrow, unfolded = records
+        self.assertGreater(narrow["expected"].count("\n"), 2)
+        self.assertEqual(unfolded["code"], narrow["expected"])
+        self.assertEqual(unfolded["expected"], FOLDING_SOURCE)
 
-    def test_options_accept_flags_in_any_order_before_the_files(self):
-        args = ["--variants", "narrow,unfolded", "--formatted-trees", "--jobs", "2", "a.gd", "--jobs", "9"]
-        self.assertEqual(gdformat_cases.options(args), (True, 2, {"narrow", "unfolded"}, ["a.gd", "--jobs", "9"]))
-        self.assertEqual(gdformat_cases.options(["a.gd"]), (False, 4, None, ["a.gd"]))
+    def test_main_accepts_flags_in_any_order_before_the_files(self):
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "a.gd"
+            path.write_text(FOLDING_SOURCE, encoding="utf-8")
+            args = ["gdformat_cases.py", "--jobs", "1", "--variants", "narrow,unfolded", str(path), "--formatted-trees"]
+            with mock.patch.object(gdformat_cases.sys, "argv", args), contextlib.redirect_stdout(output):
+                gdformat_cases.main()
+        records = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([record["variant"] for record in records], ["narrow", "unfolded"])
+        self.assertTrue(all(record["formatted"] is not None for record in records))
 
     def test_main_prints_each_files_records_in_file_order_with_formatted_trees(self):
         output = io.StringIO()
