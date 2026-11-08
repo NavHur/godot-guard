@@ -86,13 +86,18 @@ impl<'s> ParserState<'s> {
                     return Ok(None);
                 }
                 Action::Reduce(index) => {
-                    let next = self.reduce_and_goto(index);
-                    if is_end && next == self.grammar.end_state {
+                    if self.reduce_reaches_end(index, is_end) {
                         return Ok(self.value_stack.pop());
                     }
                 }
             }
         }
+    }
+
+    /// Reduce by rule `index`; whether that finished the parse, which only the end token can do.
+    fn reduce_reaches_end(&mut self, index: u16, is_end: bool) -> bool {
+        let next = self.reduce_and_goto(index);
+        is_end && next == self.grammar.end_state
     }
 
     /// The error for `token` with no action in `state`.
