@@ -1,7 +1,7 @@
 //! Validate a loaded `.godot-guard.yml` against the defaults, in 0.4.0's order and with its messages,
 //! and apply it to a `Config`.
 
-use crate::config::{AUTO, Boundary, CONFIG_NAME, Config, Jobs, Level, Limit, TestScript};
+use crate::config::{AUTO, Boundary, CONFIG_NAME, Config, Gate, Jobs, Level, Limit, TestScript};
 use crate::error::{Failure, Result};
 use crate::fnmatch::Pattern;
 use crate::godot_warnings;
@@ -318,14 +318,20 @@ fn validate_gate(config: &mut Config, given: &[(&str, &Value)]) -> Result<()> {
         ("format", &mut gate.format),
         ("lint", &mut gate.lint),
         ("import", &mut gate.import),
-    ]
-    .into_iter()
-    .chain([("analyzer", &mut gate.analyzer)])
-    {
+        ("analyzer", &mut gate.analyzer),
+    ] {
         if let Some(setting) = value(key) {
             *flag = gate_flag(setting, key)?;
         }
     }
+    validate_gate_commands(gate, value)
+}
+
+/// The gate's jobs, step commands, tests, and smoke arguments.
+fn validate_gate_commands<'v>(
+    gate: &mut Gate,
+    value: impl Fn(&str) -> Option<&'v Value>,
+) -> Result<()> {
     if let Some(jobs) = value("jobs") {
         gate.jobs = gate_jobs(jobs)?;
     }
