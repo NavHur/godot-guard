@@ -327,29 +327,29 @@ fn flag_opening(kept: &str, after: Option<&char>) -> String {
 
 /// The character class at `chars[i]` (`[`) and the index after its `]`.
 fn class(chars: &[char], i: usize) -> Result<(String, usize), String> {
-    let mut out = String::from("[");
-    let mut j = i + 1;
-    if chars.get(j) == Some(&'^') {
-        out.push('^');
-        j += 1;
-    }
-    let start = j;
+    let negated = chars.get(i + 1) == Some(&'^');
+    let mut out = String::from(if negated { "[^" } else { "[" });
+    let start = i + 1 + usize::from(negated);
+    let mut j = start;
     loop {
         let c = *chars.get(j).ok_or("unterminated character set")?;
         if c == ']' && j > start {
             out.push(']');
             return Ok((out, j + 1));
         }
-        let (low, next, is_set) = class_item(chars, j)?;
+        let (member, next) = class_member(chars, j)?;
+        out.push_str(&member);
         j = next;
-        if starts_range(chars, j) {
-            let (range, after) = class_range(chars, j, &low, is_set)?;
-            out.push_str(&range);
-            j = after;
-            continue;
-        }
-        out.push_str(&low.0);
     }
+}
+
+/// One member of the class at `chars[j]`, a range included, and the index after it.
+fn class_member(chars: &[char], j: usize) -> Result<(String, usize), String> {
+    let (low, next, is_set) = class_item(chars, j)?;
+    if !starts_range(chars, next) {
+        return Ok((low.0, next));
+    }
+    class_range(chars, next, &low, is_set)
 }
 
 /// A range: `a-z`, unless the `-` at `chars[j]` is last in the set.
