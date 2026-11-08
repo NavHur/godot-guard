@@ -50,22 +50,23 @@ fn is_line_break(c: char) -> bool {
 pub fn splitlines(text: &str) -> Vec<&str> {
     let mut lines = Vec::new();
     let mut start = 0;
-    let mut chars = text.char_indices().peekable();
-    while let Some((index, c)) = chars.next() {
-        if !is_line_break(c) {
-            continue;
-        }
-        lines.push(&text[start..index]);
-        start = index + c.len_utf8();
-        if c == '\r' && chars.peek().is_some_and(|&(_, next)| next == '\n') {
-            chars.next();
-            start += 1;
-        }
+    while let Some(offset) = text[start..].find(is_line_break) {
+        let end = start + offset;
+        lines.push(&text[start..end]);
+        start = end + line_break_len(&text[end..]);
     }
     if start < text.len() {
         lines.push(&text[start..]);
     }
     lines
+}
+
+/// The bytes of the line break that `rest` starts with: `\r\n` is one break.
+fn line_break_len(rest: &str) -> usize {
+    if rest.starts_with("\r\n") {
+        return 2;
+    }
+    rest.chars().next().map_or(0, char::len_utf8)
 }
 
 #[cfg(test)]
