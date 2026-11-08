@@ -109,6 +109,61 @@ fn save(directory: &Path, label: &str, outcome: &Outcome) {
     }
 }
 
+fn label(name: &str, args: &[&str]) -> String {
+    format!("{name}: godot-guard {}", args.join(" "))
+}
+
+/// Save both outcomes of a command that differs; the line that says where.
+fn save_difference(
+    work: &Path,
+    name: &str,
+    args: &[&str],
+    want: &Outcome,
+    got: &Outcome,
+) -> String {
+    let directory = work.join("diff").join(name).join(args.join("_"));
+    save(&directory, "oracle", want);
+    save(&directory, "port", got);
+    format!("{}: see {}", label(name, args), directory.display())
+}
+
+/// Print whether each command matched; the lines for the commands that differ.
+fn compare_commands(
+    name: &str,
+    work: &Path,
+    expected: &[Outcome],
+    actual: &[Outcome],
+) -> Vec<String> {
+    let mut differing = Vec::new();
+    for ((args, want), got) in COMMANDS.iter().zip(expected).zip(actual) {
+        let same = want == got;
+        let verdict = if same { "identical" } else { "DIFFERS  " };
+        eprintln!("{verdict} {} (exit {})", label(name, args), want.status);
+        if !same {
+            differing.push(save_difference(work, name, args, want, got));
+        }
+    }
+    differing
+}
+
+/// Print how many scripts have the same problems in both `check --json` reports.
+fn compare_problem_files(name: &str, expected: &str, actual: &str) {
+    let (want, got) = (problems_by_file(expected), problems_by_file(actual));
+    let files: Vec<&String> = want
+        .keys()
+        .chain(got.keys().filter(|f| !want.contains_key(*f)))
+        .collect();
+    let different = files
+        .iter()
+        .filter(|f| want.get(**f) != got.get(**f))
+        .count();
+    eprintln!(
+        "{name}: {} files compared, {} identical, {different} differing",
+        files.len(),
+        files.len() - different
+    );
+}
+
 #[test]
 fn the_port_matches_0_4_0_on_the_corpus() {
     let Some(corpus) = env::var_os("GG_CORPUS").map(PathBuf::from) else {
@@ -126,38 +181,8 @@ fn the_port_matches_0_4_0_on_the_corpus() {
         let target = work.join("copy").join(name);
         let expected = outcomes(&oracle, &corpus, name, &target);
         let actual = outcomes(&port, &corpus, name, &target);
-        for ((args, want), got) in COMMANDS.iter().zip(&expected).zip(&actual) {
-            let label = format!("{name}: godot-guard {}", args.join(" "));
-            let same = want == got;
-            eprintln!(
-                "{} {label} (exit {})",
-                if same { "identical" } else { "DIFFERS  " },
-                want.status
-            );
-            if !same {
-                let directory = work.join("diff").join(name).join(args.join("_"));
-                save(&directory, "oracle", want);
-                save(&directory, "port", got);
-                differing.push(format!("{label}: see {}", directory.display()));
-            }
-        }
-        let (want, got) = (
-            problems_by_file(&expected[1].stdout),
-            problems_by_file(&actual[1].stdout),
-        );
-        let files: Vec<&String> = want
-            .keys()
-            .chain(got.keys().filter(|f| !want.contains_key(*f)))
-            .collect();
-        let different = files
-            .iter()
-            .filter(|f| want.get(**f) != got.get(**f))
-            .count();
-        eprintln!(
-            "{name}: {} files compared, {} identical, {different} differing",
-            files.len(),
-            files.len() - different
-        );
+        differing.extend(compare_commands(name, &work, &expected, &actual));
+        compare_problem_files(name, &expected[1].stdout, &actual[1].stdout);
     }
     assert!(
         differing.is_empty(),
