@@ -111,15 +111,15 @@ fn add_standalone_comments(
         );
         let comments = remaining_comments[range.clone()].to_vec();
         remaining_comments.truncate(range.start);
-        push_line_below_comments((line_no, line), comments, &mut postprocessed_lines, context);
+        push_comments_then_line((line_no, line), comments, &mut postprocessed_lines, context);
     }
     postprocessed_lines.reverse();
     postprocessed_lines
 }
 
-/// Pushes the standalone `comments` that sit above `line` and then `line`; the output runs bottom up, so
-/// the comments go last to first, indented as the greater of the line and the line below it.
-fn push_line_below_comments(
+/// Pushes the standalone `comments` that sit below `line` in the source, then `line`; the output runs
+/// bottom up, so the comments go last to first, indented as the greater of the line and the line below it.
+fn push_comments_then_line(
     (line_no, line): (Option<i64>, String),
     comments: Vec<Option<String>>,
     postprocessed_lines: &mut FormattedLines,
