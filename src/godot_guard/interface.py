@@ -97,12 +97,16 @@ def read_exports(surface: Surface, line: str, pending: list[str]) -> list[str]:
     """Record an exported variable on `line`; return the annotations still waiting for a var."""
     annotations = re.findall(r"@(\w+)", line.split("var ", 1)[0]) if line.startswith("@") else []
     if is_variable(line):
-        if is_exported(annotations + pending):
-            surface.exports.append(re.search(r"var\s+(\w+)", line).group(1))
+        record_export(surface, line, annotations + pending)
         return []
     if annotations and "var " not in line:
         return pending + [a for a in annotations if a not in NOT_VARIABLES]
     return []
+
+
+def record_export(surface: Surface, line: str, annotations: list[str]) -> None:
+    if is_exported(annotations):
+        surface.exports.append(re.search(r"var\s+(\w+)", line).group(1))
 
 
 def parse(path: str, source: str) -> Surface:
@@ -126,6 +130,10 @@ def is_resource(surface: Surface, by_class: dict[str, Surface], by_path: dict[st
         if current == "Resource":
             return True
         seen.add(current)
-        parent = by_class.get(current) or by_path.get(current.replace("res://", ""))
-        current = parent.extends if parent else ""
+        current = base_of(current, by_class, by_path)
     return False
+
+
+def base_of(name: str, by_class: dict[str, Surface], by_path: dict[str, Surface]) -> str:
+    parent = by_class.get(name) or by_path.get(name.replace("res://", ""))
+    return parent.extends if parent else ""
