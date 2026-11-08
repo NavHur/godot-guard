@@ -194,6 +194,28 @@ mod tests {
     }
 
     #[test]
+    fn compacts_nested_containers_in_input_order() {
+        let value = Json::List(vec![
+            Json::Object(vec![
+                (
+                    "z".into(),
+                    Json::List(vec![
+                        Json::Int(-1),
+                        Json::Object(vec![("k".into(), Json::Str("\n".into()))]),
+                    ]),
+                ),
+                ("a".into(), Json::Null),
+            ]),
+            Json::List(vec![Json::List(vec![])]),
+            Json::Int(7),
+        ]);
+        assert_eq!(
+            dumps_compact(&value),
+            "[{\"z\": [-1, {\"k\": \"\\n\"}], \"a\": null}, [[]], 7]"
+        );
+    }
+
+    #[test]
     fn escapes_like_python() {
         assert_eq!(
             quote("é\u{1F600}\x7f\"\\\x01"),
