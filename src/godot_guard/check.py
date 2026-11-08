@@ -66,9 +66,8 @@ def problems_of(config: Config, results: list[FileResult], subset: set[str] | No
     problems = []
     for result in results:
         problems += [p for p in result.problems if config.level(p.rule) != "off"]
-        for item in result.items:
-            if config.level(item.rule) != "off":
-                problems += judge.item(item)
+        for item in baseline.active_items(config, result.items):
+            problems += judge.item(item)
     problems += judge.missing(results, subset)
     return problems
 
@@ -130,15 +129,24 @@ def update_baseline(config: Config, init: bool = False, force: bool = False) -> 
         return 0
     results = measure(config, config.scanned_files())
     if init:
-        data = baseline.violations(config, results)
-        baseline.write(path, data)
-        counts = ", ".join(f"{rule} {len(data[rule])}" for rule in baseline.BASELINED)
-        print(f"wrote {BASELINE_NAME}: {counts}")
+        initialize_baseline(config, results)
         return 0
+    tighten_baseline(config, results)
+    return 0
+
+
+def tighten_baseline(config: Config, results: list[FileResult]) -> None:
+    path = config.baseline_path
     data, changes = baseline.tighten(config, baseline.load(path), results)
     for change in changes:
         print(change)
     if changes:
         baseline.write(path, data)
     print(f"{BASELINE_NAME}: {plural(len(changes), 'change')}")
-    return 0
+
+
+def initialize_baseline(config: Config, results: list[FileResult]) -> None:
+    data = baseline.violations(config, results)
+    baseline.write(config.baseline_path, data)
+    counts = ", ".join(f"{rule} {len(data[rule])}" for rule in baseline.BASELINED)
+    print(f"wrote {BASELINE_NAME}: {counts}")
