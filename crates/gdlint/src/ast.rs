@@ -212,25 +212,30 @@ impl<'a> AbstractSyntaxTree<'a> {
             if stmt.data == "property_body_def" {
                 continue;
             }
-            let statement = Statement {
-                lark_node: stmt,
-                kind: stmt.data,
-                annotations: std::mem::take(&mut annotations),
-            };
-            self.all_classes[index].statements.push(statement);
-            match stmt.data {
-                "class_def" => {
-                    let class_name =
-                        find_name_token_among_children(stmt).expect("class_def has a name");
-                    self.load_class(stmt, &class_name.value);
-                }
-                "func_def" | "abstract_func_def" => {
-                    let function = Function::new(stmt);
-                    self.all_classes[index].function_names.push(function.name);
-                    self.all_functions.push(function);
-                }
-                _ => {}
+            self.load_statement(index, stmt, std::mem::take(&mut annotations));
+        }
+    }
+
+    /// Adds `stmt`, with the annotations that precede it, to the class at `index`, and loads the class
+    /// or function it defines.
+    fn load_statement(&mut self, index: usize, stmt: &'a Tree, annotations: Vec<&'a str>) {
+        self.all_classes[index].statements.push(Statement {
+            lark_node: stmt,
+            kind: stmt.data,
+            annotations,
+        });
+        match stmt.data {
+            "class_def" => {
+                let class_name =
+                    find_name_token_among_children(stmt).expect("class_def has a name");
+                self.load_class(stmt, &class_name.value);
             }
+            "func_def" | "abstract_func_def" => {
+                let function = Function::new(stmt);
+                self.all_classes[index].function_names.push(function.name);
+                self.all_functions.push(function);
+            }
+            _ => {}
         }
     }
 }
