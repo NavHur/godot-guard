@@ -239,6 +239,36 @@ mod tests {
     }
 
     #[test]
+    fn a_double_dash_ends_the_options() {
+        let arguments = parsed(&["-c", "--", "--fast", "-x", "-"]);
+        assert!(arguments.check && !arguments.fast);
+        assert_eq!(arguments.paths, ["--fast", "-x", "-"]);
+    }
+
+    #[test]
+    fn a_lone_dash_is_a_path_between_options() {
+        let arguments = parsed(&["a.gd", "-", "-f", "b.gd"]);
+        assert!(arguments.fast);
+        assert_eq!(arguments.paths, ["a.gd", "-", "b.gd"]);
+    }
+
+    #[test]
+    fn a_short_value_is_attached_or_the_next_argument() {
+        assert_eq!(parsed(&["-l", "9", "a.gd"]).line_length, Some(9));
+        assert_eq!(parsed(&["-l9", "a.gd"]).line_length, Some(9));
+        assert_eq!(parsed(&["-fl9", "a.gd"]).line_length, Some(9));
+    }
+
+    #[test]
+    fn a_long_option_without_a_value_takes_none() {
+        let args: Vec<String> = ["--check=1", "a.gd"].map(String::from).to_vec();
+        let Err(ArgumentsExit::Usage(message)) = parse_arguments(&args) else {
+            panic!("--check=1 parsed");
+        };
+        assert_eq!(message, "--check must not have an argument\n");
+    }
+
+    #[test]
     fn diff_implies_check() {
         assert!(parsed(&["-d", "a.gd"]).check);
     }
