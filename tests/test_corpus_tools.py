@@ -107,16 +107,20 @@ class FormatterOracleTest(unittest.TestCase):
         self.assertEqual(gdformat_cases.options(args), (True, 2, {"narrow", "unfolded"}, ["a.gd", "--jobs", "9"]))
         self.assertEqual(gdformat_cases.options(["a.gd"]), (False, 4, None, ["a.gd"]))
 
-    def test_main_prints_each_files_records_in_file_order(self):
+    def test_main_prints_each_files_records_in_file_order_with_formatted_trees(self):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as root:
             paths = []
             for name in ("a.gd", "b.gd", "c.gd"):
                 path = Path(root) / name
-                path.write_text("extends Node\n", encoding="utf-8")
+                path.write_text("extends Node\n\nvar value=1\n", encoding="utf-8")
                 paths.append(str(path))
-            args = ["gdformat_cases.py", "--variants", "original", "--jobs", "2", *paths]
+            args = ["gdformat_cases.py", "--formatted-trees", "--variants", "original", "--jobs", "2", *paths]
             with mock.patch.object(gdformat_cases.sys, "argv", args), contextlib.redirect_stdout(output):
                 gdformat_cases.main()
         records = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual([record["id"] for record in records], [f"{path}#original" for path in paths])
+        for record in records:
+            self.assertEqual((record["expected"], record["safety"]), ("extends Node\n\nvar value = 1\n", "ok"))
+            self.assertEqual(sorted(record["formatted"]), ["comments", "tree"])
+            self.assertTrue(record["formatted"]["tree"] and record["formatted"]["comments"])
