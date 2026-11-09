@@ -10,7 +10,18 @@ import subprocess
 from pathlib import Path
 
 LIMITS = {"cognitive": 6, "cyclomatic": 18}
+LIMITS_TEXT = " / ".join(f"{metric} {limit}" for metric, limit in LIMITS.items())
 LANGUAGES = {".py": "python", ".rs": "rust", ".gd": "gdscript"}
+# Parser fixtures that are invalid on purpose; any other file the scorer cannot read is a failure.
+INVALID_FIXTURES = frozenset(
+    {
+        "crates/gdformat/tests/fixtures/cli/broken/bad.gd",
+        "crates/gdscript/tests/fixtures/dedent_error.gd",
+        "crates/gdscript/tests/fixtures/eof_dedent_in_brackets.gd",
+        "crates/gdscript/tests/fixtures/unexpected_character.gd",
+        "crates/gdscript/tests/fixtures/unexpected_eof.gd",
+    }
+)
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -34,7 +45,9 @@ def analyzer(language):
 
 
 def measure(language, paths):
-    result = subprocess.run([*analyzer(language), *paths], cwd=ROOT, capture_output=True, text=True)
+    result = subprocess.run([*analyzer(language), *paths], check=False, cwd=ROOT, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"{language}: analyzer exited {result.returncode}: {result.stderr.strip()}")
     report = json.loads(result.stdout)
     if set(report) != set(paths):
         raise ValueError(f"{language}: analyzer did not report exactly the requested files")
@@ -52,6 +65,8 @@ def describe(path, function):
 
 def file_findings(path, functions):
     if isinstance(functions, dict):
+        if path not in INVALID_FIXTURES:
+            return [f"{path}: not measured: {functions['error']}"]
         print(f"UNPARSED: {path}: {functions['error']}")
         return []
     return [describe(path, function) for function in functions if is_over(function)]
@@ -66,7 +81,7 @@ def check():
             findings.extend(file_findings(path, functions))
     for finding in findings:
         print(finding)
-    print(f"{len(findings)} functions over cognitive 6 / cyclomatic 18")
+    print(f"{len(findings)} functions over {LIMITS_TEXT} or sources not measured")
     return int(bool(findings))
 
 
