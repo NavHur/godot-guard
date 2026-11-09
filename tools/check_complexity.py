@@ -15,9 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def tracked_sources():
-    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True, text=True)
+    # Bytes, not text: universal-newline decoding would turn a "\r" in a filename into "\n".
+    result = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, check=True, capture_output=True)
     groups = {language: [] for language in LANGUAGES.values()}
-    for path in result.stdout.split("\0"):
+    for raw_path in result.stdout.split(b"\0"):
+        path = os.fsdecode(raw_path)
         language = LANGUAGES.get(Path(path).suffix)
         if language:
             groups[language].append(path)
@@ -26,7 +28,8 @@ def tracked_sources():
 
 def analyzer(language):
     if language == "gdscript":
-        return [os.environ.get("PBP_GODOT_GUARD", "godot-guard"), "complexity", "--json"]
+        # "--" so a root-level file named like "-x.gd" is a path, not an option.
+        return [os.environ.get("PBP_GODOT_GUARD", "godot-guard"), "complexity", "--json", "--"]
     return [os.environ.get("PBP_COMPLEXITY", "pbp-complexity"), language]
 
 

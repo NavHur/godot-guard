@@ -63,9 +63,20 @@ class ComplexityCheckTest(unittest.TestCase):
                 check_complexity.measure("python", ["a.py", "b.py"])
 
     def test_tracks_all_three_languages_without_path_exclusions(self):
-        result = mock.Mock(stdout="src/a.py\0crates/b.rs\0fixtures/c.gd\0README.md\0")
+        result = mock.Mock(stdout=b"src/a.py\0crates/b.rs\0fixtures/c.gd\0README.md\0")
         with mock.patch.object(check_complexity.subprocess, "run", return_value=result):
             self.assertEqual(
                 check_complexity.tracked_sources(),
                 {"python": ["src/a.py"], "rust": ["crates/b.rs"], "gdscript": ["fixtures/c.gd"]},
             )
+
+    def test_tracked_filenames_keep_carriage_returns(self):
+        result = mock.Mock(stdout=b"over\r.py\0")
+        with mock.patch.object(check_complexity.subprocess, "run", return_value=result):
+            self.assertEqual(check_complexity.tracked_sources()["python"], ["over\r.py"])
+
+    def test_gdscript_files_named_like_options_are_paths(self):
+        result = mock.Mock(stdout=json.dumps({"-x.gd": []}))
+        with mock.patch.object(check_complexity.subprocess, "run", return_value=result) as run:
+            check_complexity.measure("gdscript", ["-x.gd"])
+        self.assertEqual(run.call_args.args[0][-2:], ["--", "-x.gd"])
