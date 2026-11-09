@@ -251,3 +251,12 @@ GODOT_GUARD_PARITY_REPOS=/path/to/hexstead:/path/to/wingmen .venv/bin/python -m 
 
 The Python parity tests compare the scores with pedro-best-practices' reference
 scripts (`GODOT_GUARD_PBP_SCRIPTS` overrides their location).
+
+Run `python3 tools/check_complexity.py` to check every tracked Python, Rust, and
+GDScript function against this repository's cognitive 6 / cyclomatic 18 limits.
+It needs [pbp-complexity v0.2.0](https://github.com/NavHur/actions/releases/tag/pbp-complexity-v0.2.0)
+and godot-guard v0.7.0 on PATH; `PBP_COMPLEXITY` and `PBP_GODOT_GUARD` can point
+to those executables. The five deliberately invalid parser fixtures are reported
+as `UNPARSED`; any other source a scorer cannot measure fails the check.
+CI runs the same command after installing the pinned scorers. This checks the
+implementation and fixtures; it does not change the defaults offered to users.

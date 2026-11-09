@@ -30,11 +30,11 @@ hexstead (`PedroNavHur/hexstead`) and wingmen (`PedroNavHur/heavenrest`).
 - Python 3.9+ (`from __future__ import annotations`, no `match`). Runtime
   dependencies: `gdtoolkit>=4.5,<5` only. It brings `lark` (parser) and
   `PyYAML` (config). Tests use stdlib `unittest`.
-- Follow Pedro's own limits in this code: functions at cognitive 8 /
-  cyclomatic 16 or below, no nested conditional expressions, comments at most
-  two prose lines. Verify with
-  `~/.agents/skills/pedro-best-practices/scripts/measure_complexity.py EMPTY --repo .`
-  and `long_comments.py EMPTY --repo .`.
+- Follow Pedro's own limits in this code: functions at cognitive 6 /
+  cyclomatic 18 or below, no nested conditional expressions, comments at most
+  two prose lines. Verify with `python3 tools/check_complexity.py` (the check
+  CI runs) and
+  `~/.agents/skills/pedro-best-practices/scripts/long_comments.py EMPTY --repo .`.
 - Output lines are `path:line: message (rule)` so editors and agents can jump.
   Paths are repo-relative POSIX.
 - Reuse, don't reinvent: port the scorers from

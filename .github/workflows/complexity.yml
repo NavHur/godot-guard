@@ -12,3 +12,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: NavHur/actions/complexity@main
+      - name: Check the whole tree
+        env:
+          # Reuse the pinned scorers installed by the complexity action above.
+          PBP_COMPLEXITY: ${{ runner.temp }}/complexity/home/.local/bin/pbp-complexity
+          PBP_GODOT_GUARD: ${{ runner.temp }}/complexity/home/.local/bin/godot-guard
+        run: python3 tools/check_complexity.py
