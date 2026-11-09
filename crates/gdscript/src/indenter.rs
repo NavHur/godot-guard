@@ -66,16 +66,6 @@ struct Processed {
 /// The tokens of a lambda header the lookback must find: `:`, `)`, `(`, `func`.
 const HEADER_PARTS: usize = 4;
 
-/// What the lookback makes of one token.
-enum HeaderStep {
-    /// The next part of the header.
-    Part,
-    /// A token the header may hold between its parts.
-    Skipped,
-    /// Anything else: this is no lambda header.
-    Rejected,
-}
-
 pub struct Indenter<'s> {
     types: Types,
     paren_level: usize,
@@ -112,23 +102,13 @@ impl<'s> Indenter<'s> {
         lexer: &mut Lexer<'s>,
         state: u16,
     ) -> Result<Option<LexToken<'s>>, ParseError> {
-        loop {
-            if let Some(ready) = self.take_ready() {
-                return ready;
-            }
+        while self.queue.is_empty() && self.pending_error.is_none() && !self.finished {
             self.pull(lexer, state)?;
         }
-    }
-
-    /// What `next` answers without lexing: a queued token, else the queued error, else the end of input.
-    fn take_ready(&mut self) -> Option<Result<Option<LexToken<'s>>, ParseError>> {
         if let Some(token) = self.queue.pop_front() {
-            return Some(Ok(Some(token)));
+            return Ok(Some(token));
         }
-        if let Some(error) = self.pending_error.take() {
-            return Some(Err(error));
-        }
-        self.finished.then_some(Ok(None))
+        self.pending_error.take().map_or(Ok(None), Err)
     }
 
     /// One more raw token through the indenter: count the previous one's brackets, then lex and process
@@ -338,31 +318,15 @@ impl<'s> Indenter<'s> {
         let mut matched = 0;
         for token in self.processed_tokens.iter().rev() {
             if matched >= HEADER_PARTS {
-                break;
+                return true;
             }
-            match self.header_step(matched, token, &mut extra_rpars) {
-                HeaderStep::Part => matched += 1,
-                HeaderStep::Skipped => {}
-                HeaderStep::Rejected => return false,
+            if self.header_part(matched, token.kind, extra_rpars) {
+                matched += 1;
+            } else if !self.may_skip(matched, token, &mut extra_rpars) {
+                return false;
             }
         }
         matched >= HEADER_PARTS
-    }
-
-    /// How the lookback treats `token` while it waits for the header's `matched`th part from the end.
-    fn header_step(
-        &self,
-        matched: usize,
-        token: &Processed,
-        extra_rpars: &mut usize,
-    ) -> HeaderStep {
-        if self.header_part(matched, token.kind, *extra_rpars) {
-            return HeaderStep::Part;
-        }
-        if self.may_skip(matched, token, extra_rpars) {
-            return HeaderStep::Skipped;
-        }
-        HeaderStep::Rejected
     }
 
     /// gdtoolkit's `pattern_functions[i]`: whether `kind` is the `i`th token of the header, from the end.

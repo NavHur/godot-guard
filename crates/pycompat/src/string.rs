@@ -66,7 +66,10 @@ fn line_break_len(rest: &str) -> usize {
     if rest.starts_with("\r\n") {
         return 2;
     }
-    rest.chars().next().map_or(0, char::len_utf8)
+    rest.chars()
+        .next()
+        .expect("rest starts at a line break")
+        .len_utf8()
 }
 
 #[cfg(test)]
@@ -97,6 +100,12 @@ mod tests {
         assert_eq!(splitlines("\n\r"), ["", ""]);
         assert_eq!(splitlines("a\u{85}b\u{2029}"), ["a", "b"]);
         assert_eq!(splitlines("\r\nx"), ["", "x"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "rest starts at a line break")]
+    fn a_line_break_length_needs_a_break_to_measure() {
+        line_break_len("");
     }
 
     #[test]
