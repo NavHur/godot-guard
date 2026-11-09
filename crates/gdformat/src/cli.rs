@@ -343,17 +343,19 @@ fn format_files(
         }
         total += counts;
     }
-    let summary = summarize(arguments.check, files.len(), total);
+    let summary = arguments.summary(files.len(), total);
     stdout.write(io.stdout, &summary.stdout);
     let _ = io.stderr.write_all(summary.stderr.as_bytes());
     stdout.finish(summary.exit_status)
 }
 
-/// What is printed after the files, and the exit status.
-fn summarize(check: bool, files: usize, total: Counts) -> Summary {
-    match check {
-        true => check_summary(files, total.formatted, total.failed),
-        false => format_summary(files, total.formatted, total.failed),
+impl Arguments {
+    /// What is printed after the files, and the exit status.
+    fn summary(&self, files: usize, total: Counts) -> Summary {
+        match self.check {
+            true => check_summary(files, total.formatted, total.failed),
+            false => format_summary(files, total.formatted, total.failed),
+        }
     }
 }
 
