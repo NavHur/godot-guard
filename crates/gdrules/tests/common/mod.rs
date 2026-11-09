@@ -73,21 +73,24 @@ impl Tally {
         let same = match (&actual, case.value.get("rules")) {
             (Ok(actual), Some(expected)) => self.compare_rules(&case.path, actual, expected),
             (Err(_), None) => true,
-            (Ok(_), None) => self.differ(format!(
-                "{}: python crashed ({}), rust did not",
-                case.path, case.value["crash"]
-            )),
+            (Ok(_), None) => {
+                self.note_difference(format!(
+                    "{}: python crashed ({}), rust did not",
+                    case.path, case.value["crash"]
+                ));
+                false
+            }
             (Err(_), Some(_)) => {
-                self.differ(format!("{}: rust panicked, python did not", case.path))
+                self.note_difference(format!("{}: rust panicked, python did not", case.path));
+                false
             }
         };
         self.identical += usize::from(same);
     }
 
-    /// Record a difference; false, as the verdict for the case.
-    fn differ(&mut self, description: String) -> bool {
+    /// Record a difference; every one goes through here.
+    fn note_difference(&mut self, description: String) {
         self.differing.push(description);
-        false
     }
 
     /// Count what the oracle found in one file and note each result that differs from the Rust one.
@@ -96,7 +99,7 @@ impl Tally {
         count_hits(expected, &mut self.hits);
         for key in ["functions", "nested_ternaries", "patterns"] {
             if actual[key] != expected[key] {
-                self.differing.push(format!(
+                self.note_difference(format!(
                     "{path}: {key}\n  python: {}\n  rust:   {}",
                     expected[key], actual[key]
                 ));
