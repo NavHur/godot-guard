@@ -41,6 +41,24 @@ class ComplexityTest(unittest.TestCase):
         source = "func f(a, b):\n\tvar x = 1 if a else 2\n\tvar y = 3 if b else 4\n"
         self.assertEqual(complexity.nested_ternaries(tree(source)), [])
 
+    def test_symbolic_boolean_operators_score_like_keyword_operators(self):
+        for words, symbols in [
+            ("a and b and c", "a && b && c"),
+            ("a or b or c", "a || b || c"),
+            ("a and b or c", "a && b || c"),
+            ("a and b or c and d", "a && b || c && d"),
+        ]:
+            with self.subTest(condition=symbols):
+                self.assertEqual(self.scores(words), self.scores(symbols))
+        self.assertEqual(self.scores("a && b && c"), (1, 3))
+        self.assertEqual(self.scores("a && b || c"), (2, 3))
+        self.assertEqual(self.scores("a && b || c && d"), (3, 4))
+
+    def scores(self, condition: str) -> tuple[int, int]:
+        source = f"func f(a, b, c, d):\n\tvar x = {condition}\n"
+        (function,) = complexity.score(tree(source))
+        return function.cognitive, function.cyclomatic
+
 
 if __name__ == "__main__":
     unittest.main()
