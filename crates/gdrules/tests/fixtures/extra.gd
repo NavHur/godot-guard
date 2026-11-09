@@ -5,11 +5,16 @@ var speed := 1.0:
 		return speed if speed > 0 else 0.0
 
 
-static func walk(items: Array, limit: int) -> int:
+static func accumulate(items: Array, limit: int) -> int:
 	var total := 0
 	for item: int in items:
 		while total < limit && item > 0 || not items:
 			total += item
+	return total
+
+
+static func walk(items: Array, limit: int) -> int:
+	var total := accumulate(items, limit)
 	match total:
 		0 when limit > 1:
 			return walk(items, limit - 1)
@@ -22,10 +27,14 @@ static func walk(items: Array, limit: int) -> int:
 	return total
 
 
+func make_named() -> Callable:
+	return func named(): return named()
+
+
 func _process(_delta: float) -> void:
 	var d := {"a": 1}
 	var n := Node.new()
-	var h := func named(): return named()
+	var h := make_named()
 	if d and n or h and d:
 		pass
 	elif not d:

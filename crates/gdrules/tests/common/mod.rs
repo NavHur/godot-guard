@@ -71,34 +71,41 @@ impl Tally {
         self.compared += 1;
         let actual = catch_unwind(AssertUnwindSafe(|| rules(tree)));
         let same = match (&actual, case.value.get("rules")) {
-            (Ok(actual), Some(expected)) => {
-                self.functions += expected["functions"].as_array().map_or(0, Vec::len);
-                count_hits(expected, &mut self.hits);
-                for key in ["functions", "nested_ternaries", "patterns"] {
-                    if actual[key] != expected[key] {
-                        self.differing.push(format!(
-                            "{}: {key}\n  python: {}\n  rust:   {}",
-                            case.path, expected[key], actual[key]
-                        ));
-                    }
-                }
-                actual == expected
-            }
+            (Ok(actual), Some(expected)) => self.compare_rules(&case.path, actual, expected),
             (Err(_), None) => true,
             (Ok(_), None) => {
-                self.differing.push(format!(
+                self.note_difference(format!(
                     "{}: python crashed ({}), rust did not",
                     case.path, case.value["crash"]
                 ));
                 false
             }
             (Err(_), Some(_)) => {
-                self.differing
-                    .push(format!("{}: rust panicked, python did not", case.path));
+                self.note_difference(format!("{}: rust panicked, python did not", case.path));
                 false
             }
         };
         self.identical += usize::from(same);
+    }
+
+    /// Record a difference; every one goes through here.
+    fn note_difference(&mut self, description: String) {
+        self.differing.push(description);
+    }
+
+    /// Count what the oracle found in one file and note each result that differs from the Rust one.
+    fn compare_rules(&mut self, path: &str, actual: &Value, expected: &Value) -> bool {
+        self.functions += expected["functions"].as_array().map_or(0, Vec::len);
+        count_hits(expected, &mut self.hits);
+        for key in ["functions", "nested_ternaries", "patterns"] {
+            if actual[key] != expected[key] {
+                self.note_difference(format!(
+                    "{path}: {key}\n  python: {}\n  rust:   {}",
+                    expected[key], actual[key]
+                ));
+            }
+        }
+        actual == expected
     }
 
     pub fn summary(&self) -> String {

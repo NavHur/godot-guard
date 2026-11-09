@@ -209,14 +209,14 @@ pub fn exported_variables(body: &Tree) -> Vec<&Tree> {
     let mut exported = false;
     let mut found = Vec::new();
     for child in body.subtrees() {
-        if child.data == "annotation" {
-            exported = exported || is_export(child);
-            continue;
-        }
-        if exported && child.data == "class_var_stmt" {
-            found.push(child);
-        }
-        exported = false;
+        exported = match child.data {
+            "annotation" => exported || is_export(child),
+            "class_var_stmt" if exported => {
+                found.push(child);
+                false
+            }
+            _ => false,
+        };
     }
     found
 }

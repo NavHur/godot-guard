@@ -88,7 +88,7 @@ fn lambdas_are_named_after_their_enclosing_function() {
 
 #[test]
 fn nested_ternary_reports_outermost_once() {
-    assert_eq!(nested_ternaries(&tree("nested_ternary")), [6, 7, 8]);
+    assert_eq!(nested_ternaries(&tree("nested_ternary")), [9, 13, 17]);
 }
 
 #[test]

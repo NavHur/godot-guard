@@ -473,11 +473,7 @@ impl<'a> Analyzer<'a> {
         for child in &node.children {
             match child {
                 Node::Tree(tree) => self.flatten(tree, operators),
-                Node::Token(token) => match token.value.as_str() {
-                    "or" | "||" => operators.push("or"),
-                    "and" | "&&" => operators.push("and"),
-                    _ => {}
-                },
+                Node::Token(token) => operators.extend(boolean_operator(&token.value)),
             }
         }
     }
@@ -498,6 +494,15 @@ impl<'a> Analyzer<'a> {
         }
         self.scorer.decision(own);
         self.children(node);
+    }
+}
+
+/// The operator a boolean token spells, with `||` and `&&` read as `or` and `and`.
+fn boolean_operator(text: &str) -> Option<&'static str> {
+    match text {
+        "or" | "||" => Some("or"),
+        "and" | "&&" => Some("and"),
+        _ => None,
     }
 }
 
