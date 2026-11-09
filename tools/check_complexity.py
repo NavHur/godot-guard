@@ -12,16 +12,15 @@ from pathlib import Path
 LIMITS = {"cognitive": 6, "cyclomatic": 18}
 LIMITS_TEXT = " / ".join(f"{metric} {limit}" for metric, limit in LIMITS.items())
 LANGUAGES = {".py": "python", ".rs": "rust", ".gd": "gdscript"}
-# Parser fixtures that are invalid on purpose; any other file the scorer cannot read is a failure.
-INVALID_FIXTURES = frozenset(
-    {
-        "crates/gdformat/tests/fixtures/cli/broken/bad.gd",
-        "crates/gdscript/tests/fixtures/dedent_error.gd",
-        "crates/gdscript/tests/fixtures/eof_dedent_in_brackets.gd",
-        "crates/gdscript/tests/fixtures/unexpected_character.gd",
-        "crates/gdscript/tests/fixtures/unexpected_eof.gd",
-    }
-)
+# Parser fixtures that are invalid on purpose, with the parse error each must report.
+# Any other error, or any other file the scorer cannot measure, is a failure.
+INVALID_FIXTURES = {
+    "crates/gdformat/tests/fixtures/cli/broken/bad.gd": "UnexpectedToken",
+    "crates/gdscript/tests/fixtures/dedent_error.gd": "DedentError",
+    "crates/gdscript/tests/fixtures/eof_dedent_in_brackets.gd": "UnexpectedToken",
+    "crates/gdscript/tests/fixtures/unexpected_character.gd": "UnexpectedCharacters",
+    "crates/gdscript/tests/fixtures/unexpected_eof.gd": "UnexpectedToken",
+}
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -63,9 +62,14 @@ def describe(path, function):
     return f"{path}:{function['line']}: {function['name']}: {scores}"
 
 
+def is_expected_parse_error(path, error):
+    expected = INVALID_FIXTURES.get(path)
+    return expected is not None and error.startswith(f"{expected}:")
+
+
 def file_findings(path, functions):
     if isinstance(functions, dict):
-        if path not in INVALID_FIXTURES:
+        if not is_expected_parse_error(path, functions["error"]):
             return [f"{path}: not measured: {functions['error']}"]
         print(f"UNPARSED: {path}: {functions['error']}")
         return []

@@ -34,7 +34,7 @@ class ComplexityCheckTest(unittest.TestCase):
         fixture = "crates/gdscript/tests/fixtures/unexpected_eof.gd"
         reports = [
             {"a.py": [function()], "b.py": [function(7)]},
-            {fixture: {"error": "invalid fixture"}},
+            {fixture: {"error": "UnexpectedToken: invalid fixture"}},
         ]
         sources = {"python": ["a.py", "b.py"], "rust": [], "gdscript": [fixture]}
         status, output = self.run_check(sources, reports)
@@ -42,7 +42,7 @@ class ComplexityCheckTest(unittest.TestCase):
         self.assertEqual(
             output,
             (
-                f"UNPARSED: {fixture}: invalid fixture\n"
+                f"UNPARSED: {fixture}: UnexpectedToken: invalid fixture\n"
                 "b.py:3: walk: cognitive 7, cyclomatic 18\n"
                 "1 functions over cognitive 6 / cyclomatic 18 or sources not measured\n"
             ),
@@ -64,9 +64,22 @@ class ComplexityCheckTest(unittest.TestCase):
             ),
         )
 
+    def test_an_invalid_fixture_that_cannot_be_read_fails_the_check(self):
+        fixture = "crates/gdscript/tests/fixtures/unexpected_eof.gd"
+        error = "OSError: No such file or directory (os error 2)"
+        status, output = self.run_check({"gdscript": [fixture]}, [{fixture: {"error": error}}])
+        self.assertEqual(status, 1)
+        self.assertEqual(
+            output,
+            (
+                f"{fixture}: not measured: {error}\n"
+                "1 functions over cognitive 6 / cyclomatic 18 or sources not measured\n"
+            ),
+        )
+
     def test_the_invalid_fixtures_are_tracked_gdscript_files(self):
         tracked = set(check_complexity.tracked_sources()["gdscript"])
-        self.assertEqual(check_complexity.INVALID_FIXTURES - tracked, set())
+        self.assertEqual(set(check_complexity.INVALID_FIXTURES) - tracked, set())
 
     def test_analyzer_cannot_silently_omit_a_file(self):
         result = mock.Mock(returncode=0, stdout=json.dumps({"a.py": []}))
