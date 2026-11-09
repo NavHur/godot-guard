@@ -48,50 +48,34 @@ pub(crate) fn collapse_getattr_tree_to_dot_chain<'a>(expression: &Ex<'a>) -> Ex<
     let mut pending_getattr_call_to_match: Option<Ex<'a>> = None;
     let mut next_expression_to_process = Some(expression.clone());
     while let Some(next) = next_expression_to_process.take() {
-        next_expression_to_process = collapse_step(
-            next,
-            &mut reversed_dot_chain_children,
-            &mut pending_getattr_call_to_match,
-        );
+        if next.is_token() {
+            reversed_dot_chain_children.push(next);
+            continue;
+        }
+        match next.data() {
+            "getattr_call" => {
+                next_expression_to_process = Some(next.child(0));
+                pending_getattr_call_to_match = Some(next);
+            }
+            "getattr" => {
+                next_expression_to_process = Some(collapse_getattr(
+                    &next,
+                    &mut reversed_dot_chain_children,
+                    &mut pending_getattr_call_to_match,
+                ));
+            }
+            "subscr_expr" => {
+                let sub_dot_chain = collapse_subscr_expr_tree_to_dot_chain(&next);
+                reversed_dot_chain_children.extend(sub_dot_chain.children().into_iter().rev());
+            }
+            _ => reversed_dot_chain_children.push(next),
+        }
     }
     reversed_dot_chain_children.reverse();
     let dot_chain_children = reversed_dot_chain_children;
     let line = dot_chain_children[0].line();
     let end_line = dot_chain_children[dot_chain_children.len() - 1].end_line();
     Ex::fake("dot_chain", dot_chain_children, line, end_line)
-}
-
-/// Moves one node of the tree into the reversed chain; returns the node to process next, if any.
-fn collapse_step<'a>(
-    next: Ex<'a>,
-    reversed_dot_chain_children: &mut Vec<Ex<'a>>,
-    pending_getattr_call_to_match: &mut Option<Ex<'a>>,
-) -> Option<Ex<'a>> {
-    if next.is_token() {
-        reversed_dot_chain_children.push(next);
-        return None;
-    }
-    match next.data() {
-        "getattr_call" => {
-            let callee = next.child(0);
-            *pending_getattr_call_to_match = Some(next);
-            Some(callee)
-        }
-        "getattr" => Some(collapse_getattr(
-            &next,
-            reversed_dot_chain_children,
-            pending_getattr_call_to_match,
-        )),
-        "subscr_expr" => {
-            let sub_dot_chain = collapse_subscr_expr_tree_to_dot_chain(&next);
-            reversed_dot_chain_children.extend(sub_dot_chain.children().into_iter().rev());
-            None
-        }
-        _ => {
-            reversed_dot_chain_children.push(next);
-            None
-        }
-    }
 }
 
 /// Moves the attributes of a `getattr` into the reversed chain, the last of them joined with the call
