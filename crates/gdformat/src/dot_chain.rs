@@ -58,24 +58,11 @@ pub(crate) fn collapse_getattr_tree_to_dot_chain<'a>(expression: &Ex<'a>) -> Ex<
                 pending_getattr_call_to_match = Some(next);
             }
             "getattr" => {
-                let children = next.children();
-                match pending_getattr_call_to_match.take() {
-                    None => reversed_dot_chain_children.extend(children[1..].iter().rev().cloned()),
-                    Some(call) => {
-                        let matching_attr = children[children.len() - 1].clone();
-                        let mut fake_children = vec![matching_attr.clone()];
-                        fake_children.extend(call.children_from(1));
-                        reversed_dot_chain_children.push(Ex::fake(
-                            "actual_getattr_call",
-                            fake_children,
-                            matching_attr.line(),
-                            call.end_line(),
-                        ));
-                        let middle = &children[1..children.len() - 1];
-                        reversed_dot_chain_children.extend(middle.iter().rev().cloned());
-                    }
-                }
-                next_expression_to_process = Some(children[0].clone());
+                next_expression_to_process = Some(collapse_getattr(
+                    &next,
+                    &mut reversed_dot_chain_children,
+                    &mut pending_getattr_call_to_match,
+                ));
             }
             "subscr_expr" => {
                 let sub_dot_chain = collapse_subscr_expr_tree_to_dot_chain(&next);
@@ -89,6 +76,33 @@ pub(crate) fn collapse_getattr_tree_to_dot_chain<'a>(expression: &Ex<'a>) -> Ex<
     let line = dot_chain_children[0].line();
     let end_line = dot_chain_children[dot_chain_children.len() - 1].end_line();
     Ex::fake("dot_chain", dot_chain_children, line, end_line)
+}
+
+/// Moves the attributes of a `getattr` into the reversed chain, the last of them joined with the call
+/// waiting for it; returns the object they belong to.
+fn collapse_getattr<'a>(
+    getattr: &Ex<'a>,
+    reversed_dot_chain_children: &mut Vec<Ex<'a>>,
+    pending_getattr_call_to_match: &mut Option<Ex<'a>>,
+) -> Ex<'a> {
+    let children = getattr.children();
+    match pending_getattr_call_to_match.take() {
+        None => reversed_dot_chain_children.extend(children[1..].iter().rev().cloned()),
+        Some(call) => {
+            let matching_attr = children[children.len() - 1].clone();
+            let mut fake_children = vec![matching_attr.clone()];
+            fake_children.extend(call.children_from(1));
+            reversed_dot_chain_children.push(Ex::fake(
+                "actual_getattr_call",
+                fake_children,
+                matching_attr.line(),
+                call.end_line(),
+            ));
+            let middle = &children[1..children.len() - 1];
+            reversed_dot_chain_children.extend(middle.iter().rev().cloned());
+        }
+    }
+    children[0].clone()
 }
 
 pub(crate) fn collapse_subscr_expr_tree_to_dot_chain<'a>(expression: &Ex<'a>) -> Ex<'a> {

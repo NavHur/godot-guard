@@ -92,19 +92,40 @@ type OptionValue = (&'static str, Option<String>);
 /// Every option and its value, if it takes one, then the positional paths.
 type Tokens = (Vec<OptionValue>, Vec<String>);
 
+/// What one command-line argument is.
+enum ArgumentKind<'a> {
+    /// `--`: every later argument is a path.
+    EndOfOptions,
+    /// `--name[=value]`, holding what follows the dashes.
+    Long(&'a str),
+    /// A cluster of short options such as `-cfl80`.
+    Shorts,
+    Path,
+}
+
+fn classify(arg: &str) -> ArgumentKind<'_> {
+    if arg == "--" {
+        return ArgumentKind::EndOfOptions;
+    }
+    if let Some(long) = arg.strip_prefix("--") {
+        return ArgumentKind::Long(long);
+    }
+    if arg.len() > 1 && arg.starts_with('-') {
+        return ArgumentKind::Shorts;
+    }
+    ArgumentKind::Path
+}
+
 fn tokenize(args: &[String]) -> Result<Tokens, ArgumentsExit> {
     let mut options = Vec::new();
     let mut paths = Vec::new();
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
-        if arg == "--" {
-            paths.extend(rest.by_ref().cloned());
-        } else if let Some(long) = arg.strip_prefix("--") {
-            options.push(parse_long(long, &mut rest)?);
-        } else if arg.len() > 1 && arg.starts_with('-') {
-            parse_shorts(arg, &mut rest, &mut options)?;
-        } else {
-            paths.push(arg.clone());
+        match classify(arg) {
+            ArgumentKind::EndOfOptions => paths.extend(rest.by_ref().cloned()),
+            ArgumentKind::Long(long) => options.push(parse_long(long, &mut rest)?),
+            ArgumentKind::Shorts => parse_shorts(arg, &mut rest, &mut options)?,
+            ArgumentKind::Path => paths.push(arg.clone()),
         }
     }
     Ok((options, paths))
@@ -236,6 +257,36 @@ mod tests {
             ]),
             expected
         );
+    }
+
+    #[test]
+    fn a_double_dash_ends_the_options() {
+        let arguments = parsed(&["-c", "--", "--fast", "-x", "-"]);
+        assert!(arguments.check && !arguments.fast);
+        assert_eq!(arguments.paths, ["--fast", "-x", "-"]);
+    }
+
+    #[test]
+    fn a_lone_dash_is_a_path_between_options() {
+        let arguments = parsed(&["a.gd", "-", "-f", "b.gd"]);
+        assert!(arguments.fast);
+        assert_eq!(arguments.paths, ["a.gd", "-", "b.gd"]);
+    }
+
+    #[test]
+    fn a_short_value_is_attached_or_the_next_argument() {
+        assert_eq!(parsed(&["-l", "9", "a.gd"]).line_length, Some(9));
+        assert_eq!(parsed(&["-l9", "a.gd"]).line_length, Some(9));
+        assert_eq!(parsed(&["-fl9", "a.gd"]).line_length, Some(9));
+    }
+
+    #[test]
+    fn a_long_flag_given_a_value_is_a_usage_error() {
+        let args: Vec<String> = ["--check=1", "a.gd"].map(String::from).to_vec();
+        let Err(ArgumentsExit::Usage(message)) = parse_arguments(&args) else {
+            panic!("--check=1 parsed");
+        };
+        assert_eq!(message, "--check must not have an argument\n");
     }
 
     #[test]

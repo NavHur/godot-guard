@@ -15,50 +15,78 @@ pub fn format_block<'a>(
     context: &mut Context<'a>,
     surrounding_empty_lines_table: SurroundingEmptyLinesTable,
 ) -> Outcome {
-    let mut previous_statement_name: Option<&'static str> = None;
-    let mut formatted_lines = FormattedLines::new();
-    let mut previously_processed_line_number = context.previously_processed_line_number;
-
+    let mut block = BlockLines {
+        previous_statement_name: None,
+        previously_processed_line_number: context.previously_processed_line_number,
+        formatted_lines: FormattedLines::new(),
+        surrounding_empty_lines_table,
+    };
     for (i, statement) in statements.iter().enumerate() {
-        let blank_lines = |context: &Context| {
-            blank_lines_before(
-                previous_statement_name,
-                statement,
-                previously_processed_line_number,
-                context,
-                surrounding_empty_lines_table,
-            )
-        };
-
         if is_pending_annotation(statements, i, statement_formatter) {
-            context.annotations.push(statement.clone());
-            // Handle first annotation case
-            if context.annotations.len() == 1 {
-                formatted_lines.extend(blank_lines(context));
-            }
+            block.collect_annotation(statement, context);
             continue;
         }
+        block.format_statement(statement, statement_formatter, context);
+    }
+    block.finish(context)
+}
 
-        if context.annotations.is_empty() {
-            formatted_lines.extend(blank_lines(context));
-        }
+/// The lines of a block formatted so far, and where the statements before the next one ended.
+struct BlockLines {
+    previous_statement_name: Option<&'static str>,
+    previously_processed_line_number: i64,
+    formatted_lines: FormattedLines,
+    surrounding_empty_lines_table: SurroundingEmptyLinesTable,
+}
 
-        let (lines, last_line) = statement_formatter.format(statement, context);
-        previously_processed_line_number = last_line;
-        formatted_lines.extend(with_annotations(lines, context));
-        previous_statement_name = Some(statement.data());
+impl BlockLines {
+    fn add_blank_lines_before(&mut self, statement: &Ex, context: &Context) {
+        self.formatted_lines.extend(blank_lines_before(
+            self.previous_statement_name,
+            statement,
+            self.previously_processed_line_number,
+            context,
+            self.surrounding_empty_lines_table,
+        ));
     }
 
-    // Handle end of block
-    let dedent_line_number = find_dedent_line_number(previously_processed_line_number, context);
-    formatted_lines.extend(remove_empty_strings_from_end(
-        reconstruct_blank_lines_in_range(
-            previously_processed_line_number,
-            dedent_line_number,
-            context,
-        ),
-    ));
-    (formatted_lines, dedent_line_number - 1)
+    /// An annotation waits for the statement it annotates; the blank lines go before the first of them.
+    fn collect_annotation<'a>(&mut self, statement: &Ex<'a>, context: &mut Context<'a>) {
+        context.annotations.push(statement.clone());
+        if context.annotations.len() == 1 {
+            self.add_blank_lines_before(statement, context);
+        }
+    }
+
+    fn format_statement<'a>(
+        &mut self,
+        statement: &Ex<'a>,
+        statement_formatter: StatementFormatter,
+        context: &mut Context<'a>,
+    ) {
+        if context.annotations.is_empty() {
+            self.add_blank_lines_before(statement, context);
+        }
+        let (lines, last_line) = statement_formatter.format(statement, context);
+        self.previously_processed_line_number = last_line;
+        self.formatted_lines
+            .extend(with_annotations(lines, context));
+        self.previous_statement_name = Some(statement.data());
+    }
+
+    /// The lines up to the block's dedent, and the last line the block covers.
+    fn finish(mut self, context: &Context) -> Outcome {
+        let dedent_line_number =
+            find_dedent_line_number(self.previously_processed_line_number, context);
+        self.formatted_lines.extend(remove_empty_strings_from_end(
+            reconstruct_blank_lines_in_range(
+                self.previously_processed_line_number,
+                dedent_line_number,
+                context,
+            ),
+        ));
+        (self.formatted_lines, dedent_line_number - 1)
+    }
 }
 
 fn is_non_standalone_annotation_at_given_scope(
