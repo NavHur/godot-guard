@@ -90,7 +90,16 @@ class FormatterOracleTest(unittest.TestCase):
         self.assertEqual(unfolded["code"], narrow["expected"])
         self.assertEqual(unfolded["expected"], FOLDING_SOURCE)
 
-    def test_main_accepts_flags_in_any_order_before_the_files(self):
+    def test_options_after_the_first_file_are_file_names(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "a.gd"
+            path.write_text(FOLDING_SOURCE, encoding="utf-8")
+            args = ["gdformat_cases.py", str(path), "--jobs", "9"]
+            with mock.patch.object(gdformat_cases.sys, "argv", args), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(FileNotFoundError):
+                    gdformat_cases.main()
+
+    def test_main_takes_options_before_the_files_and_formatted_trees_anywhere(self):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "a.gd"
