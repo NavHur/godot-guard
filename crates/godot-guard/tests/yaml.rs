@@ -90,6 +90,68 @@ fn syntax_errors_point_at_pyyamls_line() {
     }
 }
 
+fn int_of(text: &str) -> Result<Value, String> {
+    match load(&format!("k: !!int {text}\n")) {
+        Ok(Some(Value::Map(entries))) => Ok(entries[0].1.clone()),
+        Ok(other) => panic!("{other:?}"),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+#[test]
+fn ints_read_every_base_sign_and_separator() {
+    let cases = [
+        ("0", 0),
+        ("-0", 0),
+        ("0b101", 5),
+        ("-0b101", -5),
+        ("0x1f", 31),
+        ("+0x10", 16),
+        ("010", 8),
+        ("1_000", 1000),
+        ("0_7", 7),
+        ("1:30", 90),
+        ("-1:30:00", -5400),
+        ("+-1", -1),
+        ("9223372036854775807", i64::MAX),
+    ];
+    for (text, want) in cases {
+        assert_eq!(int_of(text), Ok(Value::Int(want)), "{text}");
+    }
+}
+
+#[test]
+fn ints_that_python_rejects_or_that_overflow_are_errors() {
+    for text in [
+        "08",
+        "0o17",
+        "0xffffffffffffffff",
+        "9223372036854775808",
+        "-9223372036854775808",
+        "1:99999999999999999999",
+        "1:x",
+    ] {
+        assert_eq!(
+            int_of(text),
+            Err(format!("line 1: invalid int '{text}'")),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn keys_that_compare_equal_in_python_are_duplicates() {
+    let cases = [
+        ("{1: 0, 1.0: 0}\n", "line 1: duplicate key 1.0"),
+        ("{1: 0, true: 0}\n", "line 1: duplicate key True"),
+        ("{a: 0, b: 0, a: 0}\n", "line 1: duplicate key 'a'"),
+    ];
+    for (text, message) in cases {
+        assert_eq!(load(text).unwrap_err().to_string(), message, "{text:?}");
+    }
+    assert!(load("{'1': 0, 1: 0, a: 0, ~: 0}\n").is_ok());
+}
+
 #[test]
 fn a_shallower_error_wins_over_an_earlier_deeper_one() {
     let text = "a: {b: {x: 1, x: 2}}\nc: {y: 1, y: 2}\n";

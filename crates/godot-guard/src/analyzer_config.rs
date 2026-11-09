@@ -109,17 +109,28 @@ fn directory_rules_off(lines: &[(usize, &str)], config: &Config) -> Vec<Finding>
     for setting in DIRECTORY_RULES.captures_iter(&body) {
         let start = setting.get(0).expect("the whole match").start();
         let line = lines[body[..start].matches('\n').count()].0;
-        for entry in DIRECTORY_ENTRY.captures_iter(&setting[1]) {
-            let path = &entry[1];
-            if &entry[2] == "0" && !matches(&format!("{path}/"), &config.exclude) {
-                let message = format!(
-                    "gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; remove that entry"
-                );
-                found.push((line, message));
-            }
-        }
+        found.extend(entries_off(&setting[1], line, config));
     }
     found
+}
+
+/// A finding on `line` for each entry of one `directory_rules` setting that sets warnings off (`0`) under
+/// a scanned path.
+fn entries_off(entries: &str, line: usize, config: &Config) -> Vec<Finding> {
+    let off_under_scan = |entry: &regex::Captures| {
+        &entry[2] == "0" && !matches(&format!("{}/", &entry[1]), &config.exclude)
+    };
+    DIRECTORY_ENTRY
+        .captures_iter(entries)
+        .filter(off_under_scan)
+        .map(|entry| {
+            let path = &entry[1];
+            let message = format!(
+                "gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; remove that entry"
+            );
+            (line, message)
+        })
+        .collect()
 }
 
 /// (line, message) for warnings off, each required one set below error, and those left at a lower default.

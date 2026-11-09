@@ -359,19 +359,8 @@ fn visit<'a>(node: &'a Node, deferred: &mut VecDeque<&'a Node>) -> Result<(), Ya
 fn check_keys(entries: &[(Node, Node)]) -> Result<(), YamlError> {
     let mut seen: Vec<Value> = Vec::new();
     for (key, _) in entries {
-        if let Node::Scalar { tag, mark, .. } = key
-            && tag == &format!("{TAG_PREFIX}merge")
-        {
-            return Err(error(*mark, "merge keys are not supported"));
-        }
-        // A collection key is still its empty placeholder when PyYAML compares it.
-        let value = match key {
-            Node::Scalar { text, tag, mark } => {
-                scalar(text, tag).map_err(|problem| error(*mark, problem))?
-            }
-            Node::Seq { .. } => Value::Seq(Vec::new()),
-            Node::Map { .. } => Value::Map(Vec::new()),
-        };
+        reject_merge_key(key)?;
+        let value = key_value(key)?;
         if seen.iter().any(|earlier| earlier.py_eq(&value)) {
             return Err(error(
                 mark_of(key),
@@ -381,6 +370,26 @@ fn check_keys(entries: &[(Node, Node)]) -> Result<(), YamlError> {
         seen.push(value);
     }
     Ok(())
+}
+
+fn reject_merge_key(key: &Node) -> Result<(), YamlError> {
+    match key {
+        Node::Scalar { tag, mark, .. } if tag == &format!("{TAG_PREFIX}merge") => {
+            Err(error(*mark, "merge keys are not supported"))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// A key as PyYAML compares it: a collection key is still its empty placeholder.
+fn key_value(key: &Node) -> Result<Value, YamlError> {
+    match key {
+        Node::Scalar { text, tag, mark } => {
+            scalar(text, tag).map_err(|problem| error(*mark, problem))
+        }
+        Node::Seq { .. } => Ok(Value::Seq(Vec::new())),
+        Node::Map { .. } => Ok(Value::Map(Vec::new())),
+    }
 }
 
 fn mark_of(node: &Node) -> Marker {
@@ -433,22 +442,29 @@ fn int(text: &str) -> Option<Value> {
         Some(rest) => (-1, rest),
         None => (1, digits.strip_prefix('+').unwrap_or(&digits)),
     };
-    let magnitude = if body == "0" {
-        0
-    } else if let Some(binary) = body.strip_prefix("0b") {
-        i64::from_str_radix(binary, 2).ok()?
-    } else if let Some(hex) = body.strip_prefix("0x") {
-        i64::from_str_radix(hex, 16).ok()?
-    } else if body.starts_with('0') {
-        i64::from_str_radix(body, 8).ok()?
-    } else if body.contains(':') {
-        body.split(':').try_fold(0i64, |total, part| {
+    Some(Value::Int(sign * int_magnitude(body)?))
+}
+
+/// An int's unsigned body: `0`, binary, hex, octal, sexagesimal (`1:30`), or decimal.
+fn int_magnitude(body: &str) -> Option<i64> {
+    if body == "0" {
+        return Some(0);
+    }
+    if let Some(binary) = body.strip_prefix("0b") {
+        return i64::from_str_radix(binary, 2).ok();
+    }
+    if let Some(hex) = body.strip_prefix("0x") {
+        return i64::from_str_radix(hex, 16).ok();
+    }
+    if body.starts_with('0') {
+        return i64::from_str_radix(body, 8).ok();
+    }
+    if body.contains(':') {
+        return body.split(':').try_fold(0i64, |total, part| {
             total.checked_mul(60)?.checked_add(part.parse().ok()?)
-        })?
-    } else {
-        body.parse().ok()?
-    };
-    Some(Value::Int(sign * magnitude))
+        });
+    }
+    body.parse().ok()
 }
 
 /// `construct_yaml_float`.

@@ -36,20 +36,31 @@ fn translate(pattern: &str) -> Result<String, String> {
         let c = chars[i];
         i += 1;
         match c {
-            '*' if !out.ends_with(".*") => out.push_str(".*"),
-            '*' => {}
+            '*' => push_star(&mut out),
             '?' => out.push('.'),
-            '[' => match set_end(&chars, i) {
-                None => out.push_str(r"\["),
-                Some(j) => {
-                    out.push_str(&set_regex(&set_stuff(&chars, i, j))?);
-                    i = j + 1;
-                }
-            },
+            '[' => i = push_set(&chars, i, &mut out)?,
             _ => out.push_str(&regex::escape(c.encode_utf8(&mut [0; 4]))),
         }
     }
     Ok(out)
+}
+
+/// `*` crosses `/`; a run of stars is one `.*`.
+fn push_star(out: &mut String) {
+    if !out.ends_with(".*") {
+        out.push_str(".*");
+    }
+}
+
+/// The `[` just before `i`: the set it opens, or a literal `[` when the set is never closed. The index
+/// after what it consumed.
+fn push_set(chars: &[char], i: usize, out: &mut String) -> Result<usize, String> {
+    let Some(j) = set_end(chars, i) else {
+        out.push_str(r"\[");
+        return Ok(i);
+    };
+    out.push_str(&set_regex(&set_stuff(chars, i, j))?);
+    Ok(j + 1)
 }
 
 /// The index of the `]` closing a set opened just before `i`, or None when it is never closed.

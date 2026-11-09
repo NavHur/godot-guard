@@ -248,18 +248,29 @@ fn walk_directory(root: &Path, directory: &Path, found: &mut Vec<String>) {
     };
     let mut subdirectories = Vec::new();
     for entry in listing.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let path = entry.path();
-        if path.is_dir() {
-            subdirectories.extend(enters(&entry, &name).then_some(name));
-        } else if name.ends_with(".gd") {
-            found.push(relative_posix(root, &path));
-        }
+        subdirectories.extend(record_script_or_subdirectory(root, &entry, found));
     }
     subdirectories.sort();
     for name in subdirectories {
         walk_directory(root, &directory.join(name), found);
     }
+}
+
+/// Record a script entry in `found`; the name of a directory entry the walk enters.
+fn record_script_or_subdirectory(
+    root: &Path,
+    entry: &fs::DirEntry,
+    found: &mut Vec<String>,
+) -> Option<String> {
+    let name = entry.file_name().to_string_lossy().into_owned();
+    let path = entry.path();
+    if path.is_dir() {
+        return enters(entry, &name).then_some(name);
+    }
+    if name.ends_with(".gd") {
+        found.push(relative_posix(root, &path));
+    }
+    None
 }
 
 /// Whether the walk enters a directory: not hidden, not a symlink.

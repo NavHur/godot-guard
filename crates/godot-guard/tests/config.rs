@@ -203,6 +203,81 @@ fn gate_jobs_is_a_count_or_auto() {
 }
 
 #[test]
+fn every_gate_setting_is_read() {
+    let text = concat!(
+        "gate:\n  format: false\n  lint: false\n  import: false\n  analyzer: false\n  jobs: 2\n",
+        "  steps: [make]\n  tests: [t.gd]\n  test-commands: [pytest]\n  smoke: [--quit]\n",
+    );
+    let gate = repo(&[], Some(text)).config().gate;
+    assert!(!(gate.format || gate.lint || gate.import || gate.analyzer));
+    assert_eq!(gate.jobs, Jobs::Count(2));
+    assert_eq!(gate.steps, ["make"]);
+    assert_eq!(gate.test_commands, ["pytest"]);
+    assert_eq!(gate.smoke, ["--quit"]);
+    assert_eq!(gate.tests.len(), 1);
+}
+
+#[test]
+fn a_null_gate_setting_keeps_its_default() {
+    let gate = repo(&[], Some("gate: {format: ~, jobs: ~, steps: ~}\n"))
+        .config()
+        .gate;
+    assert!(gate.format && gate.lint && gate.import && gate.analyzer);
+    assert_eq!(gate.jobs, Jobs::Count(1));
+    assert!(gate.steps.is_empty());
+}
+
+#[test]
+fn badly_shaped_gate_settings_are_errors() {
+    let cases = [
+        ("format: 3", "gate.format must be true or false"),
+        ("analyzer: auto", "gate.analyzer must be true or false"),
+        ("steps: x", "gate.steps must be a list of strings"),
+        ("steps: [1, true]", "gate.steps must be a list of strings"),
+        ("tests: x", "gate.tests must be a list"),
+        (
+            "smoke: true",
+            "gate.smoke must be a list of arguments or false",
+        ),
+        ("bogus: true", "unknown key 'gate.bogus'"),
+    ];
+    for (setting, message) in cases {
+        let error = error_of(&format!("gate: {{{setting}}}\n"));
+        assert_eq!(error, format!(".godot-guard.yml: {message}"), "{setting}");
+    }
+}
+
+#[test]
+fn the_first_badly_shaped_gate_setting_in_reading_order_is_reported() {
+    let cases = [
+        (
+            "smoke: true, steps: x, jobs: 0, lint: 1",
+            "gate.lint must be true or false",
+        ),
+        (
+            "smoke: true, steps: x, jobs: 0",
+            "gate.jobs must be a whole number of at least 1, or auto",
+        ),
+        (
+            "smoke: true, tests: x, steps: x",
+            "gate.steps must be a list of strings",
+        ),
+        (
+            "smoke: true, tests: x, test-commands: x",
+            "gate.tests must be a list",
+        ),
+        (
+            "smoke: true, test-commands: x",
+            "gate.test-commands must be a list of strings",
+        ),
+    ];
+    for (settings, message) in cases {
+        let error = error_of(&format!("gate: {{{settings}}}\n"));
+        assert_eq!(error, format!(".godot-guard.yml: {message}"), "{settings}");
+    }
+}
+
+#[test]
 fn bad_jobs_are_errors() {
     for value in ["0", "-1", "many", "true", "1.5", "'2'"] {
         let message = error_of(&format!("gate: {{jobs: {value}}}\n"));
@@ -343,4 +418,28 @@ fn relaxed_warnings_must_be_required_ones() {
             .relaxed_warnings,
         ["unsafe_cast"]
     );
+}
+
+#[test]
+fn the_walk_lists_files_first_then_sorted_subdirectories_skipping_hidden_and_symlinked() {
+    let repo = repo(
+        &[
+            ("a.gd", ""),
+            ("notes.txt", ""),
+            ("z/c.gd", ""),
+            ("m/d.gd", ""),
+            ("m/n/e.gd", ""),
+            (".hidden/f.gd", ""),
+            ("m/.hidden/g.gd", ""),
+            ("B/h.gd", ""),
+        ],
+        None,
+    );
+    std::os::unix::fs::symlink(repo.root.join("m"), repo.root.join("alias")).unwrap();
+    let walk = |start: &str| config::walk_scripts(&repo.root, &repo.root.join(start));
+    assert_eq!(walk(""), ["a.gd", "B/h.gd", "m/d.gd", "m/n/e.gd", "z/c.gd"]);
+    assert_eq!(walk("m"), ["m/d.gd", "m/n/e.gd"]);
+    assert_eq!(walk("a.gd"), ["a.gd"]);
+    assert_eq!(walk("missing"), Vec::<String>::new());
+    assert_eq!(walk("alias"), ["alias/d.gd", "alias/n/e.gd"]);
 }

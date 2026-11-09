@@ -73,6 +73,12 @@ pub struct Exit {
 static NEGATIVE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^-\d+$|^-\d*\.\d+$").expect("a valid pattern"));
 
+/// An unrecognized `-` argument is an unknown option, unless it is a negative number or holds a space.
+fn unknown_option(text: &str) -> Option<Found> {
+    let positional = NEGATIVE.is_match(text) || text.contains(' ');
+    (!positional).then(|| (None, text.to_owned(), None))
+}
+
 fn nargs_pattern(nargs: Nargs) -> &'static str {
     match nargs {
         Nargs::Star => "^(-*[A-]*)",
@@ -83,6 +89,19 @@ fn nargs_pattern(nargs: Nargs) -> &'static str {
 
 /// An option argument: its action (None when unknown), the option string, and any `=` value.
 type Found = (Option<usize>, String, Option<String>);
+
+/// A known option within an argument: its action, the option string, and any explicit value.
+type Cursor = (usize, String, Option<String>);
+
+/// The values each option of a cluster took, by action.
+type Taken = Vec<(usize, Vec<String>)>;
+
+/// What one option of a cluster consumed: the last one's values and the index after them, or a
+/// flag followed by the rest of the cluster.
+enum Reading {
+    Last(Vec<String>, usize),
+    Cluster(Cursor),
+}
 
 struct State<'p> {
     parser: &'p Parser,
@@ -161,33 +180,66 @@ impl Parser {
         Ok(found.pop())
     }
 
+    /// An option string spelled out, alone or as `--option=value`.
+    fn known_option(&self, text: &str) -> Option<Found> {
+        if let Some(index) = self.lookup(text) {
+            return Some((Some(index), text.to_owned(), None));
+        }
+        let (option, value) = text.split_once('=')?;
+        let index = self.lookup(option)?;
+        Some((Some(index), option.to_owned(), Some(value.to_owned())))
+    }
+
     /// `_parse_optional`: None for a positional.
     fn classify(&self, text: &str) -> Result<Option<Found>, Exit> {
         if !text.starts_with('-') {
             return Ok(None);
         }
-        if let Some(index) = self.lookup(text) {
-            return Ok(Some((Some(index), text.to_owned(), None)));
+        if let Some(found) = self.known_option(text) {
+            return Ok(Some(found));
         }
         if text.len() == 1 {
             return Ok(None);
         }
-        if let Some((option, value)) = text.split_once('=')
-            && let Some(index) = self.lookup(option)
-        {
-            return Ok(Some((
-                Some(index),
-                option.to_owned(),
-                Some(value.to_owned()),
-            )));
-        }
         if let Some(one) = self.one_abbreviation(text)? {
             return Ok(Some(one));
         }
-        if NEGATIVE.is_match(text) || text.contains(' ') {
-            return Ok(None);
+        Ok(unknown_option(text))
+    }
+
+    /// The pattern string of `args` (`O`, `A`, or `-`) and the options at their indices. Everything
+    /// after the first `--` is a positional.
+    fn scan(&self, args: &[String]) -> Result<(Vec<u8>, HashMap<usize, Found>), Exit> {
+        let dashes = args
+            .iter()
+            .position(|arg| arg == "--")
+            .unwrap_or(args.len());
+        let mut options = HashMap::new();
+        let mut pattern = Vec::with_capacity(args.len());
+        for (index, arg) in args[..dashes].iter().enumerate() {
+            match self.classify(arg)? {
+                Some(found) => {
+                    options.insert(index, found);
+                    pattern.push(b'O');
+                }
+                None => pattern.push(b'A'),
+            }
         }
-        Ok(Some((None, text.to_owned(), None)))
+        if dashes < args.len() {
+            pattern.push(b'-');
+            pattern.resize(args.len(), b'A');
+        }
+        Ok((pattern, options))
+    }
+
+    /// A subcommand parser needs its subcommand.
+    fn require_command(&self, namespace: &Namespace) -> Result<(), Exit> {
+        match self.positional {
+            Some((dest, Nargs::Parser)) if namespace.command.is_none() => {
+                Err(self.error(&format!("the following arguments are required: {dest}")))
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Parse `args` as `parse_known_args` does: the namespace and the unrecognized arguments.
@@ -196,22 +248,7 @@ impl Parser {
         args: &[String],
         version: &str,
     ) -> Result<(Namespace, Vec<String>), Exit> {
-        let mut options = HashMap::new();
-        let mut pattern = Vec::with_capacity(args.len());
-        let mut after_dashes = false;
-        for (index, arg) in args.iter().enumerate() {
-            if after_dashes {
-                pattern.push(b'A');
-            } else if arg == "--" {
-                after_dashes = true;
-                pattern.push(b'-');
-            } else if let Some(found) = self.classify(arg)? {
-                options.insert(index, found);
-                pattern.push(b'O');
-            } else {
-                pattern.push(b'A');
-            }
-        }
+        let (pattern, options) = self.scan(args)?;
         let mut state = State {
             parser: self,
             version,
@@ -223,14 +260,7 @@ impl Parser {
             positional_done: self.positional.is_none(),
         };
         state.run()?;
-        if self
-            .positional
-            .is_some_and(|(_, nargs)| nargs == Nargs::Parser)
-            && state.namespace.command.is_none()
-        {
-            let (dest, _) = self.positional.expect("checked above");
-            return Err(self.error(&format!("the following arguments are required: {dest}")));
-        }
+        self.require_command(&state.namespace)?;
         Ok((state.namespace, state.extras))
     }
 
@@ -250,22 +280,26 @@ impl State<'_> {
         indices.sort_unstable();
         let mut start = 0;
         while let Some(&next) = indices.iter().find(|&&index| index >= start) {
-            if start != next {
-                let end = self.consume_positional(start)?;
-                if end > start {
-                    start = end;
-                    continue;
-                }
-            }
-            if !self.options.contains_key(&start) {
-                self.extras.extend(self.args[start..next].iter().cloned());
-                start = next;
-            }
-            start = self.consume_option(start)?;
+            start = self.advance(start, next)?;
         }
         let stop = self.consume_positional(start)?;
         self.extras.extend(self.args[stop..].iter().cloned());
         Ok(())
+    }
+
+    /// Consume the positionals before the option at `next`, else the option itself; the new start.
+    fn advance(&mut self, start: usize, next: usize) -> Result<usize, Exit> {
+        if start != next {
+            let end = self.consume_positional(start)?;
+            if end > start {
+                return Ok(end);
+            }
+        }
+        if !self.options.contains_key(&start) {
+            self.extras.extend(self.args[start..next].iter().cloned());
+            return self.consume_option(next);
+        }
+        self.consume_option(start)
     }
 
     fn consume_positional(&mut self, start: usize) -> Result<usize, Exit> {
@@ -324,40 +358,58 @@ impl State<'_> {
     }
 
     fn consume_option(&mut self, start: usize) -> Result<usize, Exit> {
-        let (action, mut string, mut explicit) = self.options[&start].clone();
-        let Some(mut index) = action else {
+        let (action, string, explicit) = self.options[&start].clone();
+        let Some(index) = action else {
             self.extras.push(self.args[start].clone());
             return Ok(start + 1);
         };
-        let mut taken = Vec::new();
-        let stop = loop {
-            let opt = &self.parser.options[index];
-            let takes_value = matches!(opt.kind, Kind::Value(_));
-            match explicit {
-                Some(value) if takes_value => {
-                    taken.push((index, vec![value]));
-                    break start + 1;
-                }
-                // `-hx`: a single-dash flag followed by more single-dash flags.
-                Some(rest) if string.as_bytes()[1] != b'-' => {
-                    taken.push((index, Vec::new()));
-                    (index, string, explicit) = self.next_short_flag(opt, &rest)?;
-                }
-                Some(value) => return Err(self.ignored(opt, &value)),
-                None if takes_value => {
-                    taken.push((index, vec![self.take_argument(start, opt)?]));
-                    break start + 2;
-                }
-                None => {
-                    taken.push((index, Vec::new()));
-                    break start + 1;
-                }
-            }
-        };
+        let (taken, stop) = self.gather(start, (index, string, explicit))?;
         for (index, values) in taken {
             self.take(index, values)?;
         }
         Ok(stop)
+    }
+
+    /// The values each option of the cluster at `start` takes, and where the cluster ends.
+    fn gather(&self, start: usize, first: Cursor) -> Result<(Taken, usize), Exit> {
+        let mut taken = Taken::new();
+        let mut cursor = first;
+        loop {
+            let index = cursor.0;
+            match self.read_action(start, cursor)? {
+                Reading::Last(values, stop) => {
+                    taken.push((index, values));
+                    return Ok((taken, stop));
+                }
+                Reading::Cluster(next) => {
+                    taken.push((index, Vec::new()));
+                    cursor = next;
+                }
+            }
+        }
+    }
+
+    /// What the option at `cursor` takes: its value, or the next flag of a `-hx` cluster.
+    fn read_action(
+        &self,
+        start: usize,
+        (index, string, explicit): Cursor,
+    ) -> Result<Reading, Exit> {
+        let opt = &self.parser.options[index];
+        let takes_value = matches!(opt.kind, Kind::Value(_));
+        match explicit {
+            Some(value) if takes_value => Ok(Reading::Last(vec![value], start + 1)),
+            // `-hx`: a single-dash flag followed by more single-dash flags.
+            Some(rest) if string.as_bytes()[1] != b'-' => {
+                Ok(Reading::Cluster(self.next_short_flag(opt, &rest)?))
+            }
+            Some(value) => Err(self.ignored(opt, &value)),
+            None if takes_value => {
+                let value = self.take_argument(start, opt)?;
+                Ok(Reading::Last(vec![value], start + 2))
+            }
+            None => Ok(Reading::Last(Vec::new(), start + 1)),
+        }
     }
 
     fn ignored(&self, opt: &Opt, explicit: &str) -> Exit {
@@ -370,11 +422,7 @@ impl State<'_> {
     }
 
     /// `-hx`: the flag after `opt`, and what follows it.
-    fn next_short_flag(
-        &self,
-        opt: &Opt,
-        rest: &str,
-    ) -> Result<(usize, String, Option<String>), Exit> {
+    fn next_short_flag(&self, opt: &Opt, rest: &str) -> Result<Cursor, Exit> {
         let first = rest.chars().next().expect("a nonempty explicit argument");
         let next = format!("-{first}");
         let Some(found) = self.parser.lookup(&next) else {
