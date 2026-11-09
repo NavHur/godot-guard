@@ -256,6 +256,7 @@ Run `python3 tools/check_complexity.py` to check every tracked Python, Rust, and
 GDScript function against this repository's cognitive 6 / cyclomatic 18 limits.
 It needs [pbp-complexity v0.2.0](https://github.com/NavHur/actions/releases/tag/pbp-complexity-v0.2.0)
 and godot-guard v0.7.0 on PATH; `PBP_COMPLEXITY` and `PBP_GODOT_GUARD` can point
-to those executables. Invalid parser fixtures are reported as `UNPARSED`.
+to those executables. The five deliberately invalid parser fixtures are reported
+as `UNPARSED`; any other source a scorer cannot measure fails the check.
 CI runs the same command after installing the pinned scorers. This checks the
 implementation and fixtures; it does not change the defaults offered to users.
