@@ -161,20 +161,33 @@ fn insert_pair(pairs: &mut Vec<(Value, Value)>, key: Value, value: Value) {
 /// Whether a mapping is a `!!set`; any other explicit collection tag is refused.
 fn collection_tag(tag: Option<&Tag>, kind: &str) -> Result<bool, YamlError> {
     let Some(tag) = tag else { return Ok(false) };
-    if tag.is_yaml_core_schema() && (tag.suffix == kind || (kind == "map" && tag.suffix == "set")) {
+    if names_collection(tag, kind) {
         return Ok(tag.suffix == "set");
     }
-    if tag.handle.is_empty() && tag.suffix == "!" {
+    if is_non_specific(tag) {
         return Ok(false);
     }
     error(format!("unsupported tag {tag}"))
+}
+
+/// Whether a core-schema tag names `kind`; a mapping may also be tagged `!!set`.
+fn names_collection(tag: &Tag, kind: &str) -> bool {
+    if !tag.is_yaml_core_schema() {
+        return false;
+    }
+    tag.suffix == kind || (kind == "map" && tag.suffix == "set")
+}
+
+/// The bare `!` tag, which only asks for the default type of the node's kind.
+fn is_non_specific(tag: &Tag) -> bool {
+    tag.handle.is_empty() && tag.suffix == "!"
 }
 
 fn scalar(text: &str, style: ScalarStyle, tag: Option<&Tag>) -> Result<Value, YamlError> {
     let kind = match tag {
         None if style == ScalarStyle::Plain => implicit_kind(text),
         None => "str",
-        Some(tag) if tag.handle.is_empty() && tag.suffix == "!" => "str",
+        Some(tag) if is_non_specific(tag) => "str",
         Some(tag) if tag.is_yaml_core_schema() => tag.suffix.as_str(),
         Some(tag) => return error(format!("unsupported tag {tag}")),
     };
@@ -238,23 +251,30 @@ fn construct_int(text: &str) -> Result<i64, YamlError> {
         Some(rest) => (-1, rest),
         None => (1, cleaned.strip_prefix('+').unwrap_or(&cleaned)),
     };
-    let parsed = if digits == "0" {
-        Ok(0)
-    } else if let Some(binary) = digits.strip_prefix("0b") {
-        i64::from_str_radix(binary, 2)
-    } else if let Some(hex) = digits.strip_prefix("0x") {
-        i64::from_str_radix(hex, 16)
-    } else if digits.starts_with('0') {
-        i64::from_str_radix(digits, 8)
-    } else if digits.contains(':') {
-        sexagesimal(digits)
-    } else {
-        digits.parse()
-    };
-    match parsed {
+    match integer_magnitude(digits) {
         Ok(value) => Ok(sign * value),
         Err(e) => error(format!("invalid or out-of-range integer {text:?}: {e}")),
     }
+}
+
+/// An unsigned YAML 1.1 integer: binary, hex, octal (a leading 0), sexagesimal, or decimal.
+fn integer_magnitude(digits: &str) -> Result<i64, std::num::ParseIntError> {
+    if digits == "0" {
+        return Ok(0);
+    }
+    if let Some(binary) = digits.strip_prefix("0b") {
+        return i64::from_str_radix(binary, 2);
+    }
+    if let Some(hex) = digits.strip_prefix("0x") {
+        return i64::from_str_radix(hex, 16);
+    }
+    if digits.starts_with('0') {
+        return i64::from_str_radix(digits, 8);
+    }
+    if digits.contains(':') {
+        return sexagesimal(digits);
+    }
+    digits.parse()
 }
 
 fn sexagesimal(digits: &str) -> Result<i64, std::num::ParseIntError> {
@@ -381,6 +401,48 @@ mod tests {
             items[13..],
             [Value::Str("abc".into()), Value::Str("1".into())]
         );
+    }
+
+    #[test]
+    fn explicit_integers_follow_pyyaml_signs_and_bases() {
+        let value = one(
+            "[!!int -0b11, !!int +0x1f, !!int -017, !!int '-1:30', !!int 1_0, !!int +0, !!int -0]",
+        );
+        assert_eq!(
+            value,
+            Value::List([-3, 31, -15, -90, 10, 0, 0].map(Value::Int).into())
+        );
+        for text in [
+            "!!int 0xZZ",
+            "!!int 99999999999999999999",
+            "!!int 019",
+            "!!int 1:x",
+            "!!int ''",
+        ] {
+            let message = load(text).expect_err(text).to_string();
+            assert!(
+                message.starts_with("invalid or out-of-range integer"),
+                "{text}: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn collection_tags_pick_the_collection_or_refuse() {
+        assert_eq!(one("!!map {a: 1}"), one("{a: 1}"));
+        assert_eq!(one("!!seq [1]"), one("[1]"));
+        assert_eq!(one("! {a: 1}"), one("{a: 1}"));
+        assert_eq!(one("!!set {a}"), Value::Set(vec![Value::Str("a".into())]));
+        for text in [
+            "!!set [1]",
+            "!!map [1]",
+            "!!seq {a: 1}",
+            "!!str {a: 1}",
+            "!custom [1]",
+        ] {
+            let message = load(text).expect_err(text).to_string();
+            assert!(message.starts_with("unsupported tag"), "{text}: {message}");
+        }
     }
 
     #[test]

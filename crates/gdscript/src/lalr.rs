@@ -78,19 +78,17 @@ impl<'s> ParserState<'s> {
                 .language
                 .action(state, token.kind)
                 .ok_or_else(|| self.unexpected(state, &token))?;
-            match action {
+            let reduced_to = match action {
                 Action::Shift(next) => {
                     assert!(!is_end, "lark never shifts $END");
                     self.state_stack.push(next);
                     self.value_stack.push(Item::Lexed(token));
                     return Ok(None);
                 }
-                Action::Reduce(index) => {
-                    let next = self.reduce_and_goto(index);
-                    if is_end && next == self.grammar.end_state {
-                        return Ok(self.value_stack.pop());
-                    }
-                }
+                Action::Reduce(index) => self.reduce_and_goto(index),
+            };
+            if is_end && reduced_to == self.grammar.end_state {
+                return Ok(self.value_stack.pop());
             }
         }
     }

@@ -50,22 +50,26 @@ fn is_line_break(c: char) -> bool {
 pub fn splitlines(text: &str) -> Vec<&str> {
     let mut lines = Vec::new();
     let mut start = 0;
-    let mut chars = text.char_indices().peekable();
-    while let Some((index, c)) = chars.next() {
-        if !is_line_break(c) {
-            continue;
-        }
-        lines.push(&text[start..index]);
-        start = index + c.len_utf8();
-        if c == '\r' && chars.peek().is_some_and(|&(_, next)| next == '\n') {
-            chars.next();
-            start += 1;
-        }
+    while let Some(offset) = text[start..].find(is_line_break) {
+        let end = start + offset;
+        lines.push(&text[start..end]);
+        start = end + line_break_len(&text[end..]);
     }
     if start < text.len() {
         lines.push(&text[start..]);
     }
     lines
+}
+
+/// The bytes of the line break that `rest` starts with: `\r\n` is one break.
+fn line_break_len(rest: &str) -> usize {
+    if rest.starts_with("\r\n") {
+        return 2;
+    }
+    rest.chars()
+        .next()
+        .expect("rest starts at a line break")
+        .len_utf8()
 }
 
 #[cfg(test)]
@@ -85,6 +89,23 @@ mod tests {
         assert!(splitlines("").is_empty());
         assert_eq!(splitlines("\n"), [""]);
         assert_eq!(splitlines("\u{2028}x"), ["", "x"]);
+    }
+
+    #[test]
+    fn splitlines_pairs_only_cr_with_a_following_lf() {
+        assert_eq!(splitlines("a\r"), ["a"]);
+        assert_eq!(splitlines("a\r\n"), ["a"]);
+        assert_eq!(splitlines("\r\n\r\n"), ["", ""]);
+        assert_eq!(splitlines("\r\r\n"), ["", ""]);
+        assert_eq!(splitlines("\n\r"), ["", ""]);
+        assert_eq!(splitlines("a\u{85}b\u{2029}"), ["a", "b"]);
+        assert_eq!(splitlines("\r\nx"), ["", "x"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "rest starts at a line break")]
+    fn a_line_break_length_needs_a_break_to_measure() {
+        line_break_len("");
     }
 
     #[test]

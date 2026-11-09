@@ -105,27 +105,37 @@ fn exponent(bytes: &[u8], at: usize) -> usize {
 /// greedy: a shorter one would leave a digit or `_` where the next part needs `e`, `.`, or the end.
 fn number(bytes: &[u8]) -> usize {
     let start = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
-    let digits = int(bytes, start);
-    if digits > 0 {
-        let exp = exponent(bytes, start + digits);
-        if exp > 0 {
-            return start + digits + exp;
-        }
-        if bytes.get(start + digits) == Some(&b'.') {
-            let at = start + digits + 1;
-            let fraction = int(bytes, at);
-            return at + fraction + exponent(bytes, at + fraction);
-        }
-        return start + digits;
+    match int(bytes, start) {
+        0 => leading_dot_number(bytes, start),
+        digits => integer_number(bytes, start + digits),
     }
-    if bytes.get(start) == Some(&b'.') {
-        let fraction = int(bytes, start + 1);
-        if fraction > 0 {
+}
+
+/// The end of `INT EXP | INT "." INT? EXP? | INT` given where its INT ends at `at`.
+fn integer_number(bytes: &[u8], at: usize) -> usize {
+    let exp = exponent(bytes, at);
+    if exp > 0 {
+        return at + exp;
+    }
+    if bytes.get(at) == Some(&b'.') {
+        let fraction = int(bytes, at + 1);
+        return at + 1 + fraction + exponent(bytes, at + 1 + fraction);
+    }
+    at
+}
+
+/// `"." INT EXP?` from `start`; 0 when the dot or the digits after it are missing.
+fn leading_dot_number(bytes: &[u8], start: usize) -> usize {
+    if bytes.get(start) != Some(&b'.') {
+        return 0;
+    }
+    match int(bytes, start + 1) {
+        0 => 0,
+        fraction => {
             let at = start + 1 + fraction;
-            return at + exponent(bytes, at);
+            at + exponent(bytes, at)
         }
     }
-    0
 }
 
 /// An `r` string: `(?i)` lets the prefix be `R` too.
@@ -305,26 +315,32 @@ fn spaced_name(text: &str, at: usize, part: fn(&str, usize) -> usize) -> Option<
 /// TYPE_HINT, `TYPE (?:\[TYPE(?:(?:\ )?,(?:\ )?TYPE)?\])?`. The bracket group is all or nothing: after a
 /// greedy TYPE only `]`, `,` or ` ,` can continue, and fewer TYPE repetitions leave `.` or ` .` there.
 fn type_hint(text: &str) -> usize {
-    let bytes = text.as_bytes();
     let base = type_name(text, 0);
-    if base == 0 || bytes.get(base) != Some(&b'[') {
-        return base;
+    if base == 0 {
+        return 0;
     }
-    let first = base + 1 + type_name(text, base + 1);
-    if first == base + 1 {
-        return base;
+    type_arguments(text, base).unwrap_or(base)
+}
+
+/// The end of `\[TYPE(?:(?:\ )?,(?:\ )?TYPE)?\]` at `open`, or None when the group does not match whole.
+fn type_arguments(text: &str, open: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    if bytes.get(open) != Some(&b'[') {
+        return None;
+    }
+    let first = open + 1 + type_name(text, open + 1);
+    if first == open + 1 {
+        return None;
     }
     if bytes.get(first) == Some(&b']') {
-        return first + 1;
+        return Some(first + 1);
     }
     let comma = first + usize::from(bytes[first..].starts_with(b" ,"));
     if bytes.get(comma) != Some(&b',') {
-        return base;
+        return None;
     }
-    match spaced_name(text, comma + 1, type_name) {
-        Some(second) if bytes.get(second) == Some(&b']') => second + 1,
-        _ => base,
-    }
+    let second = spaced_name(text, comma + 1, type_name)?;
+    (bytes.get(second) == Some(&b']')).then_some(second + 1)
 }
 
 #[cfg(test)]

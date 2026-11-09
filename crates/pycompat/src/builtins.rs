@@ -134,16 +134,8 @@ pub fn float_repr(number: f64) -> String {
     if !number.is_finite() {
         return non_finite_repr(number).into();
     }
-    let magnitude = number.abs();
-    if magnitude != 0.0 && !(1e-4..1e16).contains(&magnitude) {
-        let text = format!("{number:e}");
-        let (mantissa, exponent) = text.split_once('e').expect("exponent form");
-        let exponent: i32 = exponent.parse().expect("an exponent");
-        return format!(
-            "{mantissa}e{}{:02}",
-            if exponent < 0 { '-' } else { '+' },
-            exponent.abs()
-        );
+    if needs_exponent(number.abs()) {
+        return exponent_repr(number);
     }
     let text = format!("{number}");
     if text.contains('.') {
@@ -151,6 +143,23 @@ pub fn float_repr(number: f64) -> String {
     } else {
         format!("{text}.0")
     }
+}
+
+/// Whether `repr` writes a finite float of this magnitude in exponent form; zero reads as `0.0`.
+fn needs_exponent(magnitude: f64) -> bool {
+    magnitude != 0.0 && !(1e-4..1e16).contains(&magnitude)
+}
+
+/// Exponent form as Python writes it: a signed exponent of at least two digits, as in `1e-05`.
+fn exponent_repr(number: f64) -> String {
+    let text = format!("{number:e}");
+    let (mantissa, exponent) = text.split_once('e').expect("exponent form");
+    let exponent: i32 = exponent.parse().expect("an exponent");
+    format!(
+        "{mantissa}e{}{:02}",
+        if exponent < 0 { '-' } else { '+' },
+        exponent.abs()
+    )
 }
 
 #[cfg(test)]
@@ -166,6 +175,21 @@ mod tests {
         assert_eq!(float_repr(1.5e300), "1.5e+300");
         assert_eq!(float_repr(-2.0), "-2.0");
         assert_eq!(float_repr(f64::NEG_INFINITY), "-inf");
+    }
+
+    #[test]
+    fn float_repr_covers_zero_non_finite_and_exponent_edges() {
+        assert_eq!(float_repr(0.0), "0.0");
+        assert_eq!(float_repr(-0.0), "-0.0");
+        assert_eq!(float_repr(f64::NAN), "nan");
+        assert_eq!(float_repr(f64::INFINITY), "inf");
+        assert_eq!(float_repr(123.456), "123.456");
+        assert_eq!(float_repr(9.99e15), "9990000000000000.0");
+        assert_eq!(float_repr(-1.5e-7), "-1.5e-07");
+        assert_eq!(float_repr(1e22), "1e+22");
+        assert_eq!(float_repr(5e-324), "5e-324");
+        assert_eq!(float_repr(-1e100), "-1e+100");
+        assert_eq!(float_repr(2.5e-5), "2.5e-05");
     }
 
     #[test]

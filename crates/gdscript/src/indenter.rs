@@ -63,6 +63,9 @@ struct Processed {
     is_arrow: bool,
 }
 
+/// The tokens of a lambda header the lookback must find: `:`, `)`, `(`, `func`.
+const HEADER_PARTS: usize = 4;
+
 pub struct Indenter<'s> {
     types: Types,
     paren_level: usize,
@@ -99,18 +102,13 @@ impl<'s> Indenter<'s> {
         lexer: &mut Lexer<'s>,
         state: u16,
     ) -> Result<Option<LexToken<'s>>, ParseError> {
-        loop {
-            if let Some(token) = self.queue.pop_front() {
-                return Ok(Some(token));
-            }
-            if let Some(error) = self.pending_error.take() {
-                return Err(error);
-            }
-            if self.finished {
-                return Ok(None);
-            }
+        while self.queue.is_empty() && self.pending_error.is_none() && !self.finished {
             self.pull(lexer, state)?;
         }
+        if let Some(token) = self.queue.pop_front() {
+            return Ok(Some(token));
+        }
+        self.pending_error.take().map_or(Ok(None), Err)
     }
 
     /// One more raw token through the indenter: count the previous one's brackets, then lex and process
@@ -317,20 +315,18 @@ impl<'s> Indenter<'s> {
     /// Looking back from the newline: `func [NAME] ( … ) [-> TYPE_HINT] :` with only newlines between.
     fn current_token_is_just_after_lambda_header(&self) -> bool {
         let mut extra_rpars = 0usize;
-        let mut i = 0;
+        let mut matched = 0;
         for token in self.processed_tokens.iter().rev() {
-            if i >= 4 {
+            if matched >= HEADER_PARTS {
                 return true;
             }
-            if self.header_part(i, token.kind, extra_rpars) {
-                i += 1;
-                continue;
-            }
-            if !self.may_skip(i, token, &mut extra_rpars) {
+            if self.header_part(matched, token.kind, extra_rpars) {
+                matched += 1;
+            } else if !self.may_skip(matched, token, &mut extra_rpars) {
                 return false;
             }
         }
-        i >= 4
+        matched >= HEADER_PARTS
     }
 
     /// gdtoolkit's `pattern_functions[i]`: whether `kind` is the `i`th token of the header, from the end.
