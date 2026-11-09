@@ -27,17 +27,30 @@ def mutate(text, rng):
         at = rng.randrange(len(text) + 1)
         return text[:at] + rng.choice(INSERTS) + text[at:]
     line = rng.randrange(len(lines))
-    if kind == 2:
-        lines[line] = rng.choice(["\t", " ", "  "]) + lines[line]
-    elif kind == 3:
-        lines[line] = lines[line][1:]
-    elif kind == 4:
-        lines.insert(line, lines[line])
-    elif kind == 5:
-        del lines[line]
-    else:
+    edit = LINE_EDITS.get(kind)
+    if edit is None:
         return text[: rng.randrange(len(text) + 1)]
+    edit(lines, line, rng)
     return "\n".join(lines)
+
+
+def indent_line(lines, line, rng):
+    lines[line] = rng.choice(["\t", " ", "  "]) + lines[line]
+
+
+def trim_line_start(lines, line, rng):
+    lines[line] = lines[line][1:]
+
+
+def duplicate_line(lines, line, rng):
+    lines.insert(line, lines[line])
+
+
+def delete_line(lines, line, rng):
+    del lines[line]
+
+
+LINE_EDITS = {2: indent_line, 3: trim_line_start, 4: duplicate_line, 5: delete_line}
 
 
 def main():

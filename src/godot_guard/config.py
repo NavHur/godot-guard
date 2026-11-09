@@ -278,13 +278,20 @@ def relaxed(value) -> list[str]:
 
 
 def validate(config: Config) -> None:
-    for key, value in config.limits.items():
-        expect(isinstance(value, int) and not isinstance(value, bool) and value >= 0, f"limits.{key} must be a whole number")
+    validate_limits(config.limits)
     for rule, level in config.rules.items():
         expect(level in LEVELS, f"rules.{rule} must be one of {', '.join(LEVELS)}")
     for rule in ADVISORY:
         expect(config.rules[rule] != "error", f"rules.{rule} is advisory: use warn or off")
-    gate = config.gate
+    validate_gate(config.gate)
+
+
+def validate_limits(limits: dict[str, object]) -> None:
+    for key, value in limits.items():
+        expect(isinstance(value, int) and not isinstance(value, bool) and value >= 0, f"limits.{key} must be a whole number")
+
+
+def validate_gate(gate: dict) -> None:
     for key in ("format", "lint", "import", "analyzer"):
         expect(isinstance(gate[key], bool), f"gate.{key} must be true or false")
     jobs = gate["jobs"]

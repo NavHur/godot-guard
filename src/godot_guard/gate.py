@@ -61,6 +61,13 @@ def steps_for(
 ) -> list[Step]:
     """`chosen` are the selected scripts, or None for every scanned one; `sources` roots the copy they are read from."""
     sources = sources or config
+    steps = shared_steps(config, sources, chosen)
+    if not fast:
+        steps.extend(full_only_steps(config))
+    return steps
+
+
+def shared_steps(config: Config, sources: Config, chosen: list[str] | None) -> list[Step]:
     files = sources.scanned_files() if chosen is None else chosen
     gate, steps = config.gate, []
     if gate["format"]:
@@ -69,9 +76,12 @@ def steps_for(
         steps.append(Step("lint", PREPARE, lambda echo, env: gdtool("gdlint", [], files, sources, echo)))
     steps.append(Step("check", PREPARE, lambda echo, env: check(
         sources, absolute(sources, chosen), resource_map(config, sources, chosen), echo=echo)))
-    if fast:
-        return steps
-    for command in gate["steps"]:
+    return steps
+
+
+def full_only_steps(config: Config) -> list[Step]:
+    steps = []
+    for command in config.gate["steps"]:
         steps.append(Step(command, PREPARE, lambda echo, env, c=command: run_process(["/bin/sh", "-c", c], config.root, None, echo)))
     root = str(config.root)
     for name, args in godot_steps(config):

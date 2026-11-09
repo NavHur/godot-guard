@@ -69,11 +69,17 @@ def directory_rules_off(lines: list[tuple[int, str]], config: Config) -> list[tu
     found = []
     for setting in DIRECTORY_RULES.finditer(body):
         line = lines[body.count("\n", 0, setting.start())][0]
-        for path, level in DIRECTORY_ENTRY.findall(setting.group(1)):
-            if level == "0" and not matches(path + "/", config.exclude):
-                message = (f"gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; "
-                           "remove that entry")
-                found.append((line, message))
+        found.extend(disabled_directories(setting.group(1), line, config))
+    return found
+
+
+def disabled_directories(entries: str, line: int, config: Config) -> list[tuple[int, str]]:
+    found = []
+    for path, level in DIRECTORY_ENTRY.findall(entries):
+        if level == "0" and not matches(path + "/", config.exclude):
+            message = (f"gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; "
+                       "remove that entry")
+            found.append((line, message))
     return found
 
 

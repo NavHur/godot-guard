@@ -131,10 +131,14 @@ def violations(config: Config, results: list[FileResult]) -> dict:
     """Every item over its limit, as baseline data."""
     data = empty()
     for result in results:
-        for item in result.items:
-            if config.level(item.rule) != "off" and item.value > limit(config, item.rule):
+        for item in active_items(config, result.items):
+            if item.value > limit(config, item.rule):
                 data[item.rule][item.key] = item.value
     return data
+
+
+def active_items(config: Config, items: list[Item]) -> list[Item]:
+    return [item for item in items if config.level(item.rule) != "off"]
 
 
 def measured(results: list[FileResult]) -> tuple[dict, set[str]]:
@@ -152,15 +156,21 @@ def tighten(config: Config, data: dict, results: list[FileResult]) -> tuple[dict
     current, unparsed = measured(results)
     tightened, changes = empty(), []
     for rule, key, recorded in entries(data):
-        value = current.get((rule, key))
-        if value is None and not in_scope(rule, key, None, unparsed):
-            value = recorded
+        value = measured_or_recorded(rule, key, recorded, current, unparsed)
         kept, change = settle(rule, key, recorded, value, limit(config, rule))
         if kept is not None:
             tightened[rule][key] = kept
         if change:
             changes.append(change)
     return tightened, changes
+
+
+def measured_or_recorded(rule: str, key: str, recorded: int, current: dict, unparsed: set[str]) -> int | None:
+    """The measured value; the recorded one when the entry's file failed to parse and nothing was measured."""
+    value = current.get((rule, key))
+    if value is None and not in_scope(rule, key, None, unparsed):
+        return recorded
+    return value
 
 
 def settle(rule: str, key: str, recorded: int, value: int | None, allowed: int) -> tuple[int | None, str]:

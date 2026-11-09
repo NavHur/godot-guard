@@ -164,14 +164,18 @@ def _dump(record):
     return json.dumps(record, ensure_ascii=False, separators=(",", ":"))
 
 
+def wanted_variants(code):
+    for variant, variant_code, line_length, spaces in variants(code):
+        if variant_code is not None and _wanted(variant):
+            yield variant, variant_code, line_length, spaces
+
+
 def cases(path):
     with open(path, encoding="utf-8") as handle:
         code = handle.read()
     lines = []
     narrow = None
-    for variant, variant_code, line_length, spaces in variants(code):
-        if variant_code is None or not _wanted(variant):
-            continue
+    for variant, variant_code, line_length, spaces in wanted_variants(code):
         record = case(path, variant, variant_code, line_length, spaces)
         lines.append(_dump(record))
         if variant == "narrow":
@@ -186,8 +190,7 @@ def _init(formatted_trees, variants_wanted):
     FORMATTED_TREES, VARIANTS = formatted_trees, variants_wanted
 
 
-def main():
-    args = sys.argv[1:]
+def options(args):
     formatted_trees = "--formatted-trees" in args
     args = [a for a in args if a != "--formatted-trees"]
     jobs, variants_wanted = 4, None
@@ -197,6 +200,11 @@ def main():
         else:
             variants_wanted = set(args[1].split(","))
         args = args[2:]
+    return formatted_trees, jobs, variants_wanted, args
+
+
+def main():
+    formatted_trees, jobs, variants_wanted, args = options(sys.argv[1:])
     sys.setrecursionlimit(100000)
     with multiprocessing.Pool(jobs, initializer=_init, initargs=(formatted_trees, variants_wanted)) as pool:
         for lines in pool.imap(cases, args, chunksize=4):
