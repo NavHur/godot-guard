@@ -136,38 +136,43 @@ fn is_variable(line: &str) -> bool {
 
 /// Record an exported variable on `line`; return the annotations still waiting for a var.
 fn read_exports(surface: &mut Surface, line: &str, pending: Vec<String>) -> Vec<String> {
-    let annotations: Vec<String> = if line.starts_with('@') {
-        let before_var = line.split_once("var ").map_or(line, |(head, _)| head);
-        ANNOTATION
-            .captures_iter(before_var)
-            .map(|c| c[1].to_owned())
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let annotations = annotations_before_var(line);
     if is_variable(line) {
-        if annotations
-            .iter()
-            .chain(&pending)
-            .any(|a| is_export_annotation(a))
-        {
-            let name = VARIABLE_NAME
-                .captures(line)
-                .expect("a variable line names its variable");
-            surface.exports.push(name[1].to_owned());
+        let mut exported = annotations.iter().chain(&pending);
+        if exported.any(|a| is_export_annotation(a)) {
+            surface.exports.push(variable_name(line));
         }
         return Vec::new();
     }
-    if !annotations.is_empty() && !line.contains("var ") {
-        let mut waiting = pending;
-        waiting.extend(
-            annotations
-                .into_iter()
-                .filter(|a| !NOT_VARIABLES.contains(&a.as_str())),
-        );
-        return waiting;
+    if annotations.is_empty() || line.contains("var ") {
+        return Vec::new();
     }
-    Vec::new()
+    let mut waiting = pending;
+    waiting.extend(
+        annotations
+            .into_iter()
+            .filter(|a| !NOT_VARIABLES.contains(&a.as_str())),
+    );
+    waiting
+}
+
+/// The annotations a line starting with `@` carries ahead of any `var`.
+fn annotations_before_var(line: &str) -> Vec<String> {
+    if !line.starts_with('@') {
+        return Vec::new();
+    }
+    let before_var = line.split_once("var ").map_or(line, |(head, _)| head);
+    ANNOTATION
+        .captures_iter(before_var)
+        .map(|c| c[1].to_owned())
+        .collect()
+}
+
+fn variable_name(line: &str) -> String {
+    let name = VARIABLE_NAME
+        .captures(line)
+        .expect("a variable line names its variable");
+    name[1].to_owned()
 }
 
 pub fn parse(path: &str, source: &str) -> Surface {

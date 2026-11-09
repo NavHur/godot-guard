@@ -127,6 +127,50 @@ fn forbidden_patterns_in_matching_paths() {
     assert!(boundary_lines(&other).is_empty());
 }
 
+fn boundary_messages(result: &FileResult) -> Vec<(usize, String)> {
+    let boundary = result.problems.iter().filter(|p| p.rule == "boundary");
+    boundary.map(|p| (p.line, p.message.clone())).collect()
+}
+
+#[test]
+fn each_forbidden_pattern_reports_its_first_match_per_line_in_pattern_order() {
+    let source = "extends Node\nvar a = Sprite3D + Camera3D\nvar b = 1\nvar c = Camera3D\n";
+    let config_text = concat!(
+        "boundaries:\n  - name: domain\n    paths: ['**']\n",
+        "    forbid: ['Camera3D', 'Sprite\\w+', 'Camera3D']\n",
+    );
+    let repo = Repo::new(&[("sim.gd", source)], Some(config_text));
+    let message = |text: &str| format!("domain: '{text}' is forbidden here");
+    assert_eq!(
+        boundary_messages(&analyze_alone(&repo, "sim.gd")),
+        [
+            (2, message("Camera3D")),
+            (2, message("Sprite3D")),
+            (2, message("Camera3D")),
+            (4, message("Camera3D")),
+            (4, message("Camera3D")),
+        ]
+    );
+}
+
+#[test]
+fn only_boundaries_whose_paths_match_apply_and_each_adds_its_own_message() {
+    let config_text = concat!(
+        "boundaries:\n",
+        "  - {name: one, paths: [a/**], forbid: [Sprite3D], message: keep out}\n",
+        "  - {name: two, paths: ['**'], forbid: [Sprite3D]}\n",
+        "  - {name: three, paths: [b/**], forbid: [Sprite3D]}\n",
+    );
+    let repo = Repo::new(&[("a/x.gd", "var s: Sprite3D\n")], Some(config_text));
+    assert_eq!(
+        boundary_messages(&analyze_alone(&repo, "a/x.gd")),
+        [
+            (1, "one: 'Sprite3D' is forbidden here; keep out".to_owned()),
+            (1, "two: 'Sprite3D' is forbidden here".to_owned()),
+        ]
+    );
+}
+
 #[test]
 fn hash_inside_a_string_is_not_a_comment() {
     let source = concat!(
