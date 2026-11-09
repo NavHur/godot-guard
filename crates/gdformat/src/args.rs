@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn a_long_option_without_a_value_takes_none() {
+    fn a_long_flag_given_a_value_is_a_usage_error() {
         let args: Vec<String> = ["--check=1", "a.gd"].map(String::from).to_vec();
         let Err(ArgumentsExit::Usage(message)) = parse_arguments(&args) else {
             panic!("--check=1 parsed");
