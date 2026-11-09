@@ -22,11 +22,12 @@ class ComplexityCheckTest(unittest.TestCase):
 
     def run_check(self, sources, reports):
         output = io.StringIO()
-        with (
-            mock.patch.object(check_complexity, "tracked_sources", return_value=sources),
-            mock.patch.object(check_complexity, "measure", side_effect=reports),
-            contextlib.redirect_stdout(output),
-        ):
+        patches = mock.patch.multiple(
+            check_complexity,
+            tracked_sources=mock.Mock(return_value=sources),
+            measure=mock.Mock(side_effect=reports),
+        )
+        with patches, contextlib.redirect_stdout(output):
             status = check_complexity.check()
         return status, output.getvalue()
 
@@ -84,8 +85,14 @@ class ComplexityCheckTest(unittest.TestCase):
     def test_analyzer_cannot_silently_omit_a_file(self):
         result = mock.Mock(returncode=0, stdout=json.dumps({"a.py": []}))
         with mock.patch.object(check_complexity.subprocess, "run", return_value=result):
-            with self.assertRaisesRegex(ValueError, "exactly the requested files"):
+            with self.assertRaisesRegex(ValueError, r"missing \['b.py'\], unexpected \[\]"):
                 check_complexity.measure("python", ["a.py", "b.py"])
+
+    def test_analyzer_cannot_invent_a_file(self):
+        result = mock.Mock(returncode=0, stdout=json.dumps({"a.py": [], "ghost.py": []}))
+        with mock.patch.object(check_complexity.subprocess, "run", return_value=result):
+            with self.assertRaisesRegex(ValueError, r"missing \[\], unexpected \['ghost.py'\]"):
+                check_complexity.measure("python", ["a.py"])
 
     def test_a_failed_analyzer_is_not_a_clean_report(self):
         result = mock.Mock(returncode=2, stdout=json.dumps({"a.py": []}), stderr="fatal scorer failure\n")

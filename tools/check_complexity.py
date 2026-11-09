@@ -48,8 +48,11 @@ def measure(language, paths):
     if result.returncode != 0:
         raise RuntimeError(f"{language}: analyzer exited {result.returncode}: {result.stderr.strip()}")
     report = json.loads(result.stdout)
-    if set(report) != set(paths):
-        raise ValueError(f"{language}: analyzer did not report exactly the requested files")
+    missing, extra = sorted(set(paths) - set(report)), sorted(set(report) - set(paths))
+    if missing or extra:
+        raise ValueError(
+            f"{language}: analyzer did not report exactly the requested files: missing {missing}, unexpected {extra}"
+        )
     return report
 
 
