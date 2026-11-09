@@ -23,7 +23,8 @@ fn project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     dir
 }
 
-fn lint(dir: &Path, args: &[&str]) -> Ran {
+/// Runs the linter in `dir`, then deletes `dir`.
+fn lint_then_remove(dir: &Path, args: &[&str]) -> Ran {
     let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let status = run(&args, dir, &gdscript::parse, &mut out, &mut err).unwrap();
@@ -50,7 +51,7 @@ const LOADS: &str = "const A = preload(\"res://a.gd\")\n\
 #[test]
 fn only_load_and_preload_of_a_string_count_as_duplicate_loads() {
     let dir = project("loads", &[("loads.gd", LOADS)]);
-    let ran = lint(&dir, &["loads.gd"]);
+    let ran = lint_then_remove(&dir, &["loads.gd"]);
     assert_eq!(ran.stdout, "");
     assert_eq!(
         ran.stderr,
@@ -109,7 +110,7 @@ const NAME_PROBLEMS: [&str; 20] = [
 #[test]
 fn every_name_check_reads_its_own_scope_in_check_order() {
     let dir = project("names", &[("names.gd", NAMES)]);
-    let ran = lint(&dir, &["names.gd"]);
+    let ran = lint_then_remove(&dir, &["names.gd"]);
     let expected = format!("{}\nFailure: 20 problems found\n", NAME_PROBLEMS.join("\n"));
     assert_eq!(ran.stderr, expected);
     assert_eq!((ran.stdout.as_str(), ran.status), ("", 1));
@@ -127,7 +128,7 @@ fn a_disabled_check_reports_nothing_and_a_pattern_replaces_the_default() {
             ),
         ],
     );
-    let ran = lint(&dir, &["names.gd"]);
+    let ran = lint_then_remove(&dir, &["names.gd"]);
     let problems: Vec<&str> = ran.stderr.lines().collect();
     let kept: Vec<&str> = NAME_PROBLEMS
         .into_iter()
@@ -144,7 +145,7 @@ fn annotations_decide_the_section_of_a_class_variable() {
     let code = "@onready var a = 1\n@export var b = 2\n@export @onready var c = 3\n\
                 var d = 4\n@onready\nvar e = 5\nsignal s\n";
     let dir = project("annotations", &[("anno.gd", code)]);
-    let ran = lint(&dir, &["anno.gd"]);
+    let ran = lint_then_remove(&dir, &["anno.gd"]);
     assert_eq!(
         ran.stderr,
         "anno.gd:2: Error: Definition out of order in global scope (class-definitions-order)\n\
@@ -158,7 +159,7 @@ fn annotations_decide_the_section_of_a_class_variable() {
 #[test]
 fn verbose_logs_the_default_config_when_there_is_no_file() {
     let dir = project("verbose-default", &[("a.gd", "var a = 1\n")]);
-    let ran = lint(&dir, &["-v", "a.gd"]);
+    let ran = lint_then_remove(&dir, &["-v", "a.gd"]);
     let log: Vec<&str> = ran.stdout.lines().collect();
     assert_eq!(
         log[..4],
@@ -181,7 +182,7 @@ fn verbose_logs_the_file_then_each_default_it_lacks() {
         &[("a.gd", "var a = 1\n"), ("gdlintrc", "max-returns: 2\n")],
     );
     let shown = dir.join("gdlintrc").display().to_string();
-    let ran = lint(&dir, &["-v", "a.gd"]);
+    let ran = lint_then_remove(&dir, &["-v", "a.gd"]);
     let log: Vec<&str> = ran.stdout.lines().collect();
     assert_eq!(
         log[..4],
