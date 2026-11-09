@@ -110,13 +110,14 @@ pub fn lint(subtrees: &[&Tree], config: &Config) -> Vec<Problem> {
         .zip(SOURCES)
         .filter(|(check, _)| config.is_enabled(check))
         .flat_map(|(check, (source, description))| {
-            invalid_names(subtrees, config, check, source, description)
+            name_problems(subtrees, config, check, source, description)
         })
         .collect()
 }
 
-/// The names `source` yields that the pattern of the enabled `check` rejects.
-fn invalid_names(
+/// One problem for each name `source` yields that the pattern of the enabled
+/// `check` rejects.
+fn name_problems(
     subtrees: &[&Tree],
     config: &Config,
     check: &'static str,
