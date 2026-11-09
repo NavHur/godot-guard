@@ -123,7 +123,7 @@ fn a_disabled_check_reports_nothing_and_a_pattern_replaces_the_default() {
             ("names.gd", NAMES),
             (
                 "gdlintrc",
-                "disable: [function-name, constant-name]\nclass-name: \"[a-z]+\"\n",
+                "disable: [function-name, constant-name]\nclass-name: \"[a-z_]+\"\n",
             ),
         ],
     );
@@ -132,9 +132,10 @@ fn a_disabled_check_reports_nothing_and_a_pattern_replaces_the_default() {
     let kept: Vec<&str> = NAME_PROBLEMS
         .into_iter()
         .filter(|line| !line.ends_with("(function-name)") && !line.ends_with("(constant-name)"))
+        .filter(|line| !line.ends_with("(class-name)"))
         .collect();
-    assert_eq!(problems[..17], kept[..]);
-    assert_eq!(problems[17], "Failure: 17 problems found");
+    assert_eq!(problems[..16], kept[..]);
+    assert_eq!(problems[16], "Failure: 16 problems found");
     assert_eq!(ran.status, 1);
 }
 
