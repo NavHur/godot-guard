@@ -105,24 +105,36 @@ const SOURCES: [(Source, &str); 14] = [
 ];
 
 pub fn lint(subtrees: &[&Tree], config: &Config) -> Vec<Problem> {
-    let mut problems = Vec::new();
-    for (check, (source, description)) in NAME_CHECKS.into_iter().zip(SOURCES) {
-        if !config.is_enabled(check) {
-            continue;
-        }
-        let pattern = config.name_pattern(check);
-        for name_token in name_tokens(subtrees, source) {
-            if !pattern.is_match(&name_token.value) {
-                problems.push(Problem {
-                    name: check,
-                    description: description.replacen("{}", &name_token.value, 1),
-                    line: name_token.span.line,
-                    column: name_token.span.column,
-                });
-            }
-        }
-    }
-    problems
+    NAME_CHECKS
+        .into_iter()
+        .zip(SOURCES)
+        .filter(|(check, _)| config.is_enabled(check))
+        .flat_map(|(check, (source, description))| {
+            name_problems(subtrees, config, check, source, description)
+        })
+        .collect()
+}
+
+/// One problem for each name `source` yields that the pattern of the enabled
+/// `check` rejects.
+fn name_problems(
+    subtrees: &[&Tree],
+    config: &Config,
+    check: &'static str,
+    source: Source,
+    description: &str,
+) -> Vec<Problem> {
+    let pattern = config.name_pattern(check);
+    name_tokens(subtrees, source)
+        .into_iter()
+        .filter(|name_token| !pattern.is_match(&name_token.value))
+        .map(|name_token| Problem {
+            name: check,
+            description: description.replacen("{}", &name_token.value, 1),
+            line: name_token.span.line,
+            column: name_token.span.column,
+        })
+        .collect()
 }
 
 fn name_tokens<'a>(subtrees: &[&'a Tree], source: Source) -> Vec<&'a Token> {

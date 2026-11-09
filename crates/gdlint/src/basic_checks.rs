@@ -89,13 +89,9 @@ fn duplicated_load_check(subtrees: &[&Tree]) -> Vec<Problem> {
     // `sorted` is stable, like `sort_by_key`.
     calls.sort_by_key(|call| tree_line(call));
     for call in calls {
-        let callee_name = child_token(call, 0).value.as_str();
-        let Some(Node::Tree(string_rule)) = call.children.get(1) else {
+        let Some(string_rule) = loaded_string_rule(call) else {
             continue;
         };
-        if !matches!(callee_name, "load" | "preload") || string_rule.data != "string" {
-            continue;
-        }
         let loaded_string = child_token(string_rule, 0).value.as_str();
         if !loaded_strings.insert(loaded_string) {
             problems.push(Problem {
@@ -107,6 +103,16 @@ fn duplicated_load_check(subtrees: &[&Tree]) -> Vec<Problem> {
         }
     }
     problems
+}
+
+/// The string rule of a `load("...")` or `preload("...")` call; None for any other call.
+fn loaded_string_rule(call: &Tree) -> Option<&Tree> {
+    let callee_name = child_token(call, 0).value.as_str();
+    let Some(Node::Tree(string_rule)) = call.children.get(1) else {
+        return None;
+    };
+    let loads_a_string = matches!(callee_name, "load" | "preload") && string_rule.data == "string";
+    loads_a_string.then_some(string_rule)
 }
 
 fn unused_argument_check(subtrees: &[&Tree]) -> Vec<Problem> {

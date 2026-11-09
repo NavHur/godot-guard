@@ -32,11 +32,7 @@ pub fn load_config(cwd: &Path) -> Result<Config, ConfigError> {
 
 fn load_config_logged(cwd: &Path, log: &mut dyn FnMut(String)) -> Result<Config, ConfigError> {
     let Some(path) = config::find_config_file(cwd) else {
-        log("No 'gdlintrc' nor '.gdlintrc' found. Using default config...".into());
-        log("Loaded config:".into());
-        for (key, value) in config::default_entries() {
-            log(format!("({}, {})", repr(key), value_repr(&value)));
-        }
+        log_default_config(log);
         return Ok(Config::defaults());
     };
     let shown = path.display().to_string();
@@ -44,21 +40,39 @@ fn load_config_logged(cwd: &Path, log: &mut dyn FnMut(String)) -> Result<Config,
     let text = std::fs::read_to_string(&path)
         .map_err(|e| ConfigError(format!("cannot read {shown}: {}", strerror(&e))))?;
     let entries = config::parse_entries(&text).map_err(|e| ConfigError(format!("{shown}: {e}")))?;
+    log_loaded_entries(&entries, log);
+    log_missing_defaults(&entries, log);
+    Config::from_entries(config::string_keyed(&entries))
+        .map_err(|e| ConfigError(format!("{shown}: {e}")))
+}
+
+fn log_default_config(log: &mut dyn FnMut(String)) {
+    log("No 'gdlintrc' nor '.gdlintrc' found. Using default config...".into());
     log("Loaded config:".into());
-    for (key, value) in &entries {
+    for (key, value) in config::default_entries() {
+        log(format!("({}, {})", repr(key), value_repr(&value)));
+    }
+}
+
+fn log_loaded_entries(entries: &[(Value, Value)], log: &mut dyn FnMut(String)) {
+    log("Loaded config:".into());
+    for (key, value) in entries {
         log(format!("({}, {})", value_repr(key), value_repr(value)));
     }
+}
+
+/// The defaults the config file does not set.
+fn log_missing_defaults(entries: &[(Value, Value)], log: &mut dyn FnMut(String)) {
     for (key, value) in config::default_entries() {
-        if !entries
+        if entries
             .iter()
             .any(|(k, _)| *k == Value::Str(key.to_owned()))
         {
-            let entry = format!("({}, {})", repr(key), value_repr(&value));
-            log(format!("Adding missing entry from defaults: {entry}"));
+            continue;
         }
+        let entry = format!("({}, {})", repr(key), value_repr(&value));
+        log(format!("Adding missing entry from defaults: {entry}"));
     }
-    Config::from_entries(config::string_keyed(&entries))
-        .map_err(|e| ConfigError(format!("{shown}: {e}")))
 }
 
 /// `main()`, for `argv` without the program name, run in `cwd`.
