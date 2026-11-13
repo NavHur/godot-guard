@@ -41,7 +41,7 @@ def called_name(node) -> str:
     if node.data == "standalone_call":
         return first_name(node)
     target = node.children[0] if node.data == "getattr_call" else None
-    if not (is_tree(target) and target.data == "getattr"):
+    if getattr(target, "data", None) != "getattr":
         return ""
     return last_attribute_name(target)
 

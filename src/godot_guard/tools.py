@@ -167,6 +167,7 @@ def run_process(command: list[str], cwd: Path | None, env: dict | None, echo: Ec
     process = CHILDREN.start(command, cwd, env, pipe=echo is not None)
     try:
         if echo is not None:
+            assert process.stdout is not None, "start(pipe=True) pipes stdout"
             for line in process.stdout:
                 echo(line)
         return process.wait()

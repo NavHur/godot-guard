@@ -124,6 +124,7 @@ class IsolationTest(unittest.TestCase):
 
     def test_godot_steps_get_a_fresh_data_dir_that_is_removed_afterwards(self):
         with mock.patch.dict(os.environ, {"XDG_DATA_HOME": "/inherited"}), isolation(self.godot_step()) as env:
+            assert env is not None
             data = Path(env["XDG_DATA_HOME"])
             self.assertTrue(data.is_dir())
             self.assertNotEqual(str(data), "/inherited")
@@ -131,10 +132,12 @@ class IsolationTest(unittest.TestCase):
 
     def test_macos_points_home_at_the_data_dir_too(self):
         with mock.patch.object(schedule.sys, "platform", "darwin"), isolation(self.godot_step()) as env:
+            assert env is not None
             self.assertEqual(env["HOME"], env["XDG_DATA_HOME"])
 
     def test_other_platforms_keep_home(self):
         with mock.patch.object(schedule.sys, "platform", "linux"), isolation(self.godot_step()) as env:
+            assert env is not None
             self.assertEqual(env["HOME"], os.environ["HOME"])
 
     def test_other_steps_get_no_environment(self):

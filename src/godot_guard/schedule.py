@@ -9,12 +9,16 @@ import sys
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Callable
+from types import FrameType
+from typing import Callable, Optional, Union
 
 from .tools import CHILDREN, Echo, ToolError, write_stdout
+
+# What signal.signal accepts and returns for a signal.
+SignalHandler = Union[Callable[[int, Optional[FrameType]], object], int, signal.Handlers, None]
 
 # Phases run in this order; steps within one phase may run concurrently.
 PREPARE = "prepare"  # format, lint, check, and the gate.steps commands
@@ -129,7 +133,7 @@ def run_step(step: Step, echo: Echo | None, env: dict | None) -> int:
 
 
 @contextmanager
-def isolation(step: Step) -> Iterator[dict | None]:
+def isolation(step: Step) -> Generator[dict | None]:
     """For a Godot test step, an environment with a fresh user-data dir, removed afterwards. Other steps get none.
 
     Only TEST steps run beside each other; IMPORT runs alone and keeps the inherited environment.
@@ -146,7 +150,7 @@ def isolation(step: Step) -> Iterator[dict | None]:
 
 
 @contextmanager
-def interruptible() -> Iterator[None]:
+def interruptible() -> Generator[None]:
     """On SIGINT or SIGTERM, kill the children this gate started, then exit with 128 plus the signal number.
 
     The children are reaped here, on the normal stack, once the exit has unwound past them.
@@ -161,7 +165,7 @@ def interruptible() -> Iterator[None]:
         CHILDREN.resume()
 
 
-def install_stop_handlers() -> dict[int, object]:
+def install_stop_handlers() -> dict[int, SignalHandler]:
     """Install the stop handler; returns the handlers it replaced, keyed by signal number."""
 
     def stop(signum: int, frame: object) -> None:

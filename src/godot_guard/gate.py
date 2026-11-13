@@ -93,7 +93,7 @@ def full_only_steps(config: Config) -> list[Step]:
 
 def resource_map(config: Config, sources: Config, chosen: list[str] | None) -> Surfaces | None:
     """For a snapshot: the index's other scripts as in the working tree, overlaid with the snapshot's."""
-    if sources is config:
+    if sources is config or chosen is None:  # every script is chosen, so no other scripts remain to overlay
         return None
     surfaces = Surfaces(config.root, indexed(config, chosen))
     surfaces.overlay(sources.root, chosen)

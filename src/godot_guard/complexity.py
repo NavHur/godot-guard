@@ -87,18 +87,21 @@ class Scorer:
     def enclosing(self) -> str:
         return self._frames[-1].function.name if self._frames else ""
 
-    def _top(self) -> Function | None:
-        return self._frames[0].function if self._frames else None
+    def _add_cognitive(self, amount: int) -> None:
+        """Add to the score of the top-level function, which the first frame always holds."""
+        top = self._frames[0].function
+        assert top.cognitive is not None, "a top-level function starts at cognitive 0"
+        top.cognitive += amount
 
     def structural(self) -> None:
         """if, ternary, match, loop: 1 plus the nesting level."""
         if self._frames:
-            self._top().cognitive += 1 + self._frames[-1].nesting
+            self._add_cognitive(1 + self._frames[-1].nesting)
 
     def fundamental(self, amount: int = 1) -> None:
         """else, elif, operator runs, recursion: a flat 1 each."""
         if self._frames and amount:
-            self._top().cognitive += amount
+            self._add_cognitive(amount)
 
     def decision(self, amount: int = 1) -> None:
         """A cyclomatic decision point in the innermost function."""

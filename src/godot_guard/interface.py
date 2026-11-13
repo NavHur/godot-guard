@@ -105,8 +105,9 @@ def read_exports(surface: Surface, line: str, pending: list[str]) -> list[str]:
 
 
 def record_if_exported(surface: Surface, line: str, annotations: list[str]) -> None:
-    if is_exported(annotations):
-        surface.exports.append(re.search(r"var\s+(\w+)", line).group(1))
+    declared = re.search(r"var\s+(\w+)", line)
+    if declared and is_exported(annotations):
+        surface.exports.append(declared.group(1))
 
 
 def parse(path: str, source: str) -> Surface:

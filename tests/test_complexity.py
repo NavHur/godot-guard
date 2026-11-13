@@ -54,7 +54,7 @@ class ComplexityTest(unittest.TestCase):
         self.assertEqual(self.scores("a && b || c"), (2, 3))
         self.assertEqual(self.scores("a && b || c && d"), (3, 4))
 
-    def scores(self, condition: str) -> tuple[int, int]:
+    def scores(self, condition: str) -> tuple[int | None, int]:
         source = f"func f(a, b, c, d):\n\tvar x = {condition}\n"
         (function,) = complexity.score(tree(source))
         return function.cognitive, function.cyclomatic
