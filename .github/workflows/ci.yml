@@ -34,6 +34,24 @@ jobs:
       - run: python -m pip install .
       - run: python -m unittest
 
+  python-checks:
+    # GitHub-hosted on purpose: this repo is public, so fork PRs must never reach a self-hosted runner.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # ty reads the package's dependencies from .venv. ruff 0.17.3 and ty 0.0.94 are the versions fleet pins.
+      - run: python -m venv .venv
+      - run: .venv/bin/python -m pip install . ruff==0.17.3 ty==0.0.94
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ty check
+
   rust:
     runs-on: ubuntu-latest
     timeout-minutes: 15
