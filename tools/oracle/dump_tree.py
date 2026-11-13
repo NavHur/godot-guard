@@ -33,16 +33,23 @@ def node(obj):
 def error(exc):
     text = str(exc)
     first = text.splitlines()[0] if text else type(exc).__name__
-    return {"line": getattr(exc, "line", None), "column": getattr(exc, "column", None),
-            "type": type(exc).__name__, "message": first}
+    return {
+        "line": getattr(exc, "line", None),
+        "column": getattr(exc, "column", None),
+        "type": type(exc).__name__,
+        "message": first,
+    }
 
 
 def dump(path):
     with open(path, encoding="utf-8", errors="replace") as handle:
         source = handle.read()
     try:
-        return {"path": path, "tree": node(parser.parse(source, gather_metadata=True)),
-                "comments": node(parser.parse_comments(source))}
+        return {
+            "path": path,
+            "tree": node(parser.parse(source, gather_metadata=True)),
+            "comments": node(parser.parse_comments(source)),
+        }
     except Exception as exc:  # lark raises many parse error types
         return {"path": path, "error": error(exc)}
 

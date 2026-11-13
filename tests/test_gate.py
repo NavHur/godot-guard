@@ -49,23 +49,29 @@ class FastGateTest(ShimTest):
 
 class FullGateTest(ShimTest):
     def test_runs_every_step_in_order(self):
-        self.repo.write(".godot-guard.yml", (
-            "paths: [scripts, .]\nexclude: [addons/**]\n"
-            "gate:\n  steps: ['echo step >> .bin/calls.log']\n  tests: [res://tests/run_tests.gd]\n"
-        ))
+        self.repo.write(
+            ".godot-guard.yml",
+            (
+                "paths: [scripts, .]\nexclude: [addons/**]\n"
+                "gate:\n  steps: ['echo step >> .bin/calls.log']\n  tests: [res://tests/run_tests.gd]\n"
+            ),
+        )
         status, output = captured(gate_module.gate, self.repo.config(), False, False, [])
         self.assertEqual(status, 0, output)
         analyzer = str(gate_module.ANALYZER)
         root = str(self.repo.root)
-        self.assertEqual(self.calls(), [
-            "gdformat --check a.gd b.gd c.gd",
-            "gdlint a.gd b.gd c.gd",
-            "step",
-            f"godot --headless --path {root} --editor --quit",
-            f"godot --headless --path {root} --script {analyzer} -- --root res://scripts --root res:// --exclude addons/**",
-            f"godot --headless --path {root} --script res://tests/run_tests.gd",
-            f"godot --headless --path {root} --quit-after 3",
-        ])
+        self.assertEqual(
+            self.calls(),
+            [
+                "gdformat --check a.gd b.gd c.gd",
+                "gdlint a.gd b.gd c.gd",
+                "step",
+                f"godot --headless --path {root} --editor --quit",
+                f"godot --headless --path {root} --script {analyzer} -- --root res://scripts --root res:// --exclude addons/**",
+                f"godot --headless --path {root} --script res://tests/run_tests.gd",
+                f"godot --headless --path {root} --quit-after 3",
+            ],
+        )
         self.assertTrue(gate_module.ANALYZER.is_file())
 
     def test_godot_warning_fails_the_gate(self):
@@ -77,31 +83,43 @@ class FullGateTest(ShimTest):
 
 class ShardedTestsTest(ShimTest):
     def test_sharded_entries_run_one_process_per_shard(self):
-        self.repo.write(".godot-guard.yml", (
-            "gate:\n  format: false\n  lint: false\n  import: false\n  analyzer: false\n  smoke: false\n"
-            "  tests: [{script: res://tests/run_tests.gd, shards: 2}]\n"
-        ))
+        self.repo.write(
+            ".godot-guard.yml",
+            (
+                "gate:\n  format: false\n  lint: false\n  import: false\n  analyzer: false\n  smoke: false\n"
+                "  tests: [{script: res://tests/run_tests.gd, shards: 2}]\n"
+            ),
+        )
         status, output = captured(gate_module.gate, self.repo.config(), False, False, [])
         self.assertEqual(status, 0, output)
         root = str(self.repo.root)
-        self.assertEqual(self.calls(), [
-            f"godot --headless --path {root} --script res://tests/run_tests.gd -- --shard=1/2",
-            f"godot --headless --path {root} --script res://tests/run_tests.gd -- --shard=2/2",
-        ])
+        self.assertEqual(
+            self.calls(),
+            [
+                f"godot --headless --path {root} --script res://tests/run_tests.gd -- --shard=1/2",
+                f"godot --headless --path {root} --script res://tests/run_tests.gd -- --shard=2/2",
+            ],
+        )
         self.assertIn("== tests res://tests/run_tests.gd [2/2]", output)
 
     def test_a_mapping_with_one_shard_passes_the_argument_and_a_string_does_not(self):
-        self.repo.write(".godot-guard.yml", (
-            "gate:\n  format: false\n  lint: false\n  import: false\n  analyzer: false\n  smoke: false\n"
-            "  tests: [res://tests/plain.gd, {script: res://tests/one.gd, shards: 1}]\n"
-        ))
+        self.repo.write(
+            ".godot-guard.yml",
+            (
+                "gate:\n  format: false\n  lint: false\n  import: false\n  analyzer: false\n  smoke: false\n"
+                "  tests: [res://tests/plain.gd, {script: res://tests/one.gd, shards: 1}]\n"
+            ),
+        )
         status, output = captured(gate_module.gate, self.repo.config(), False, False, [])
         self.assertEqual(status, 0, output)
         root = str(self.repo.root)
-        self.assertEqual(self.calls(), [
-            f"godot --headless --path {root} --script res://tests/plain.gd",
-            f"godot --headless --path {root} --script res://tests/one.gd -- --shard=1/1",
-        ])
+        self.assertEqual(
+            self.calls(),
+            [
+                f"godot --headless --path {root} --script res://tests/plain.gd",
+                f"godot --headless --path {root} --script res://tests/one.gd -- --shard=1/1",
+            ],
+        )
         self.assertIn("== tests res://tests/one.gd [1/1]", output)
 
 
@@ -120,11 +138,14 @@ class ParserCacheTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             code = "from godot_guard.gate import warm_parser_cache; warm_parser_cache()"
             subprocess.run(
-                [sys.executable, "-c", code], check=True, timeout=120,
+                [sys.executable, "-c", code],
+                check=True,
+                timeout=120,
                 env=dict(os.environ, HOME=home, PYTHONPATH=str(Path(gate_module.__file__).parents[1])),
             )
             pickles = sorted(path.name for path in Path(home).rglob("*.pickle"))
         self.assertEqual(pickles, ["parser.pickle", "parser_comments.pickle", "parser_with_metadata.pickle"])
+
 
 class DirectoryArgumentTest(ShimTest):
     def setUp(self):
@@ -134,7 +155,9 @@ class DirectoryArgumentTest(ShimTest):
         self.repo.write(".godot-guard.yml", "paths: [.]\nexclude: [scripts/gen]\n")
 
     def test_format_expands_directories(self):
-        status, output = captured(format_files, self.repo.config(), [str(self.repo.root / "scripts"), str(self.repo.root / "a.gd")])
+        status, output = captured(
+            format_files, self.repo.config(), [str(self.repo.root / "scripts"), str(self.repo.root / "a.gd")]
+        )
         self.assertEqual(status, 0, output)
         self.assertEqual(self.calls(), ["gdformat a.gd scripts/d.gd"])
 
@@ -227,7 +250,9 @@ class AnalyzerTest(unittest.TestCase):
 
     def analyze(self, *roots: str) -> tuple[int, str]:
         args = [arg for root in roots for arg in ("--root", root)]
-        return captured(run_godot, ["--headless", "--path", str(self.repo.root), "--script", str(gate_module.ANALYZER), "--", *args])
+        return captured(
+            run_godot, ["--headless", "--path", str(self.repo.root), "--script", str(gate_module.ANALYZER), "--", *args]
+        )
 
     def test_file_roots_are_analyzed(self):
         status, output = self.analyze("res://a.gd")

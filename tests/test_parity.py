@@ -52,7 +52,9 @@ class ParityTest(unittest.TestCase):
         for root in REPOS:
             expected, actual = reference_totals(root), totals(root)
             scripts += len(expected)
-            mismatches += [f"{root.name}/{p}: {expected[p]} != {actual.get(p)}" for p in expected if expected[p] != actual.get(p)]
+            mismatches += [
+                f"{root.name}/{p}: {expected[p]} != {actual.get(p)}" for p in expected if expected[p] != actual.get(p)
+            ]
         print(f"\ninterface parity: {scripts} scripts, {len(mismatches)} mismatches", file=sys.stderr)
         self.assertEqual(mismatches, [])
 
@@ -73,6 +75,7 @@ def totals(root: Path) -> dict[str, int | None]:
         surface = surfaces.surface(relative, (root / relative).read_text(encoding="utf-8"))
         found[relative] = None if surface is None else surface.total
     return found
+
 
 if __name__ == "__main__":
     unittest.main()

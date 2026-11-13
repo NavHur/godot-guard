@@ -100,9 +100,16 @@ def error_line(error: Exception) -> int:
 def function_metrics(path: str, name: str, function: complexity.Function) -> list[Item]:
     metrics = (("cognitive", function.cognitive), ("cyclomatic", function.cyclomatic))
     return [
-        Item(f"{metric}-complexity", f"{path}::{name}", path, function.line, value,
-             f"{name} has {metric} complexity {value}")
-        for metric, value in metrics if value is not None
+        Item(
+            f"{metric}-complexity",
+            f"{path}::{name}",
+            path,
+            function.line,
+            value,
+            f"{name} has {metric} complexity {value}",
+        )
+        for metric, value in metrics
+        if value is not None
     ]
 
 
@@ -172,7 +179,8 @@ def boundary_hits(entry: dict, path: str, lines: list[str]) -> list[Problem]:
     suffix = f"; {entry['message']}" if entry["message"] else ""
     return [
         Problem(path, number, f"{entry['name']}: '{found.group(0)}' is forbidden here{suffix}", "boundary")
-        for number, found in hits if found
+        for number, found in hits
+        if found
     ]
 
 

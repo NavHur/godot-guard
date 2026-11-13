@@ -95,8 +95,11 @@ class FormatterOracleTest(unittest.TestCase):
             path = Path(root) / "a.gd"
             path.write_text(FOLDING_SOURCE, encoding="utf-8")
             args = ["gdformat_cases.py", str(path), "--jobs", "9"]
-            with mock.patch.object(gdformat_cases.sys, "argv", args), contextlib.redirect_stdout(io.StringIO()), \
-                    self.assertRaises(FileNotFoundError):
+            with (
+                mock.patch.object(gdformat_cases.sys, "argv", args),
+                contextlib.redirect_stdout(io.StringIO()),
+                self.assertRaises(FileNotFoundError),
+            ):
                 gdformat_cases.main()
 
     def test_main_takes_options_before_the_files_and_formatted_trees_anywhere(self):

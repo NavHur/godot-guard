@@ -15,7 +15,9 @@ from .helpers import Repo, captured
 
 class InitTest(unittest.TestCase):
     def setUp(self):
-        self.repo = Repo({"tests/run_tests.gd": "extends SceneTree\n", "tools/requirements-lint.txt": "gdtoolkit==4.5.0\n"})
+        self.repo = Repo(
+            {"tests/run_tests.gd": "extends SceneTree\n", "tools/requirements-lint.txt": "gdtoolkit==4.5.0\n"}
+        )
         self.addCleanup(self.repo.cleanup)
         self.repo.write("project.godot", 'config/features=PackedStringArray("4.7", "GL Compatibility")\n')
         subprocess.run(["git", "init", "-q"], cwd=self.repo.root, check=True)
@@ -30,7 +32,9 @@ class InitTest(unittest.TestCase):
         self.assertIn("gate --fast --staged", (root / ".githooks" / "pre-commit").read_text())
         self.assertIn("version: 4.7.1", (root / ".github" / "workflows" / "quality.yml").read_text())
         self.assertEqual((root / "tools" / "requirements-lint.txt").read_text(), f"gdtoolkit==4.5.0\n{REQUIREMENT}\n")
-        hooks = subprocess.run(["git", "config", "core.hooksPath"], cwd=root, capture_output=True, text=True, check=True)
+        hooks = subprocess.run(
+            ["git", "config", "core.hooksPath"], cwd=root, capture_output=True, text=True, check=True
+        )
         self.assertEqual(hooks.stdout.strip(), ".githooks")
         self.assertIn("ran git config core.hooksPath .githooks", output)
         status, output = captured(init, root)
@@ -72,7 +76,10 @@ class HookTest(unittest.TestCase):
         return status, self.log.read_text().splitlines()
 
     def test_hooks_queue_through_host_check(self):
-        self.assertEqual(self.hook("pre-commit", None), (0, ["host-check godot-guard gate --fast --staged", "godot-guard gate --fast --staged"]))
+        self.assertEqual(
+            self.hook("pre-commit", None),
+            (0, ["host-check godot-guard gate --fast --staged", "godot-guard gate --fast --staged"]),
+        )
 
     def test_hooks_inside_a_host_check_job_run_directly(self):
         self.assertEqual(self.hook("pre-push", "1"), (0, ["godot-guard gate"]))

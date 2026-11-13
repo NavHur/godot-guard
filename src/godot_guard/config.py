@@ -291,7 +291,10 @@ def validate(config: Config) -> None:
 
 def validate_limits(limits: dict[str, object]) -> None:
     for key, value in limits.items():
-        expect(isinstance(value, int) and not isinstance(value, bool) and value >= 0, f"limits.{key} must be a whole number")
+        expect(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0,
+            f"limits.{key} must be a whole number",
+        )
 
 
 def validate_gate(gate: dict) -> None:

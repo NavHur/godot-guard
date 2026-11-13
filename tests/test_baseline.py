@@ -151,9 +151,13 @@ class FunctionKeyTest(unittest.TestCase):
         self.assertIn("a.gd:15: f.<lambda#2> has cyclomatic complexity 4 (max 2)", output)
         self.assertNotIn("<lambda#1>", output)
         self.assertEqual(captured(update_baseline, repo.config(), init=True, force=True)[0], 0)
-        self.assertEqual(baseline.load(config.baseline_path)["cyclomatic-complexity"], {
-            "a.gd::f.<lambda#1>": 5, "a.gd::f.<lambda#2>": 4,
-        })
+        self.assertEqual(
+            baseline.load(config.baseline_path)["cyclomatic-complexity"],
+            {
+                "a.gd::f.<lambda#1>": 5,
+                "a.gd::f.<lambda#2>": 4,
+            },
+        )
 
     def test_repeated_names_are_numbered(self):
         source = "extends Node\n\n\nfunc f():\n\tpass\n\n\nfunc f():\n\tpass\n"

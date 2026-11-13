@@ -36,8 +36,21 @@ MATCHERS = {
     "-?0x[a-fA-F0-9][a-fA-F0-9_]*": "Hex",
     "-?0b[01][01_]*": "Bin",
     _TYPE + "(?:\\[" + _TYPE + "(?:(?:\\ )?,(?:\\ )?" + _TYPE + ")?\\])?": "TypeHint",
-    _SIGN + "(?:(?:" + _INT + _EXP + "|(?:" + _INT + "\\.(?:" + _INT + ")?|\\." + _INT + ")(?:" + _EXP + ")?)|"
-    + _INT + ")": "Number",
+    _SIGN
+    + "(?:(?:"
+    + _INT
+    + _EXP
+    + "|(?:"
+    + _INT
+    + "\\.(?:"
+    + _INT
+    + ")?|\\."
+    + _INT
+    + ")(?:"
+    + _EXP
+    + ")?)|"
+    + _INT
+    + ")": "Number",
     "(?:(?i:(?s:\"\"\".*?(?<!\\\\)(\\\\\\\\)*?\"\"\"))|(?i:(?s:'''.*?(?<!\\\\)(\\\\\\\\)*?''')))": "LongString",
     "(?:(?i:(?s:r\"\"\".*?(?<!\\\\)(\\\\\\\\)*?\"\"\"))|(?i:(?s:r'''.*?(?<!\\\\)(\\\\\\\\)*?''')))": "LongRString",
     "(?i:(\"(?!\"\").*?(?<!\\\\)(\\\\\\\\)*?\"|'(?!'').*?(?<!\\\\)(\\\\\\\\)*?'))": "RegularString",
@@ -144,8 +157,12 @@ class Emitter:
         else:
             include = "Some(&[%s])" % ", ".join("(%d, %s)" % (i, str(x).lower()) for i, x in to_include)
         return "    Rule { origin: %d, size: %d, data: %s, expand1: %s, include: %s },\n" % (
-            self.symbol_index[rule.origin.name], len(rule.expansion), rust_str(str(data)),
-            str(expand1).lower(), include)
+            self.symbol_index[rule.origin.name],
+            len(rule.expansion),
+            rust_str(str(data)),
+            str(expand1).lower(),
+            include,
+        )
 
     def emit_state(self, actions):
         encoded = []
@@ -175,17 +192,22 @@ class Emitter:
             "    states: &STATES,\n    rules: &RULES,\n",
             "    start_state: %d,\n    end_state: %d,\n};\n\n" % (start_state, end_state),
             "static SYMBOLS: [&str; %d] = [\n" % len(self.symbols),
-            "".join("    %s,\n" % rust_str(name) for name in self.symbols), "];\n\n",
+            "".join("    %s,\n" % rust_str(name) for name in self.symbols),
+            "];\n\n",
             "static PATTERNS: [Option<Pattern>; %d] = [\n" % terminal_count,
-            "".join(self.emit_terminal(name) for name in self.symbols[:terminal_count]), "];\n\n",
+            "".join(self.emit_terminal(name) for name in self.symbols[:terminal_count]),
+            "];\n\n",
             "static LEXERS: [Lexer; %d] = [\n" % len(lexers),
-            "".join(self.emit_lexer(lexer) for lexer in lexers), "];\n\n",
+            "".join(self.emit_lexer(lexer) for lexer in lexers),
+            "];\n\n",
             "static STATE_LEXER: [u16; %d] = [%s];\n\n" % (len(state_lexer), ", ".join(map(str, state_lexer))),
             "static RULES: [Rule; %d] = [\n" % len(self.rules),
-            "".join(self.emit_rule(rule) for rule in self.rules), "];\n\n",
+            "".join(self.emit_rule(rule) for rule in self.rules),
+            "];\n\n",
             "// Per state, sorted by symbol: (symbol << 16) | state for a shift or goto, | 0x8000 | rule for a reduce.\n",
             "static STATES: [&[u32]; %d] = [\n" % len(self.table.states),
-            "".join(self.emit_state(self.table.states[s]) for s in range(len(self.table.states))), "];\n",
+            "".join(self.emit_state(self.table.states[s]) for s in range(len(self.table.states))),
+            "];\n",
         ]
         return "".join(out)
 

@@ -41,7 +41,10 @@ class ShimTest(unittest.TestCase):
         for name in ("gdformat", "gdlint", "godot"):
             self.shim(name)
         environment = {"PATH": f"{self.bin}{os.pathsep}{os.environ['PATH']}", "GODOT": str(self.bin / "godot")}
-        patches = [mock.patch.dict(os.environ, environment), mock.patch("godot_guard.tools.sys.executable", "/nonexistent/python")]
+        patches = [
+            mock.patch.dict(os.environ, environment),
+            mock.patch("godot_guard.tools.sys.executable", "/nonexistent/python"),
+        ]
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)

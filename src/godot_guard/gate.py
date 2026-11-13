@@ -51,14 +51,15 @@ def script_steps(test: TestScript) -> list[tuple[str, list[str]]]:
     if test.shards is None:
         return [(f"tests {test.script}", ["--script", test.script])]
     return [
-        (f"tests {test.script} [{shard}/{test.shards}]", ["--script", test.script, "--", f"--shard={shard}/{test.shards}"])
+        (
+            f"tests {test.script} [{shard}/{test.shards}]",
+            ["--script", test.script, "--", f"--shard={shard}/{test.shards}"],
+        )
         for shard in range(1, test.shards + 1)
     ]
 
 
-def steps_for(
-    config: Config, chosen: list[str] | None, fast: bool, sources: Config | None = None
-) -> list[Step]:
+def steps_for(config: Config, chosen: list[str] | None, fast: bool, sources: Config | None = None) -> list[Step]:
     """`chosen` are the selected scripts, or None for every scanned one; `sources` roots the copy they are read from."""
     sources = sources or config
     steps = shared_steps(config, sources, chosen)
@@ -74,20 +75,39 @@ def shared_steps(config: Config, sources: Config, chosen: list[str] | None) -> l
         steps.append(Step("format", PREPARE, lambda echo, env: gdtool("gdformat", ["--check"], files, sources, echo)))
     if gate["lint"]:
         steps.append(Step("lint", PREPARE, lambda echo, env: gdtool("gdlint", [], files, sources, echo)))
-    steps.append(Step("check", PREPARE, lambda echo, env: check(
-        sources, absolute(sources, chosen), resource_map(config, sources, chosen), echo=echo)))
+    steps.append(
+        Step(
+            "check",
+            PREPARE,
+            lambda echo, env: check(
+                sources, absolute(sources, chosen), resource_map(config, sources, chosen), echo=echo
+            ),
+        )
+    )
     return steps
 
 
 def full_only_steps(config: Config) -> list[Step]:
     steps = []
     for command in config.gate["steps"]:
-        steps.append(Step(command, PREPARE, lambda echo, env, c=command: run_process(["/bin/sh", "-c", c], config.root, None, echo)))
+        steps.append(
+            Step(
+                command,
+                PREPARE,
+                lambda echo, env, c=command: run_process(["/bin/sh", "-c", c], config.root, None, echo),
+            )
+        )
     root = str(config.root)
     for name, args in godot_steps(config):
         phase = IMPORT if name == "import" else TEST
-        steps.append(Step(name, phase, lambda echo, env, a=args: run_godot(
-            ["--headless", "--path", root, *a], echo=echo, env=env), godot=True))
+        steps.append(
+            Step(
+                name,
+                phase,
+                lambda echo, env, a=args: run_godot(["--headless", "--path", root, *a], echo=echo, env=env),
+                godot=True,
+            )
+        )
     return steps
 
 

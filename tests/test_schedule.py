@@ -195,8 +195,11 @@ class InterruptTest(unittest.TestCase):
             signal.raise_signal(signal.SIGTERM)
             return process
 
-        with mock.patch.object(tools.subprocess, "Popen", popen_then_signal), \
-                interruptible(), self.assertRaises(SystemExit) as caught:
+        with (
+            mock.patch.object(tools.subprocess, "Popen", popen_then_signal),
+            interruptible(),
+            self.assertRaises(SystemExit) as caught,
+        ):
             CHILDREN.start(["sleep", "30"], None, None, pipe=False)
         self.assertEqual(caught.exception.code, 128 + signal.SIGTERM)
         self.assertEqual(spawned[0].wait(timeout=5), -signal.SIGKILL)
@@ -254,8 +257,11 @@ class KillSessionTest(unittest.TestCase):
         child = subprocess.Popen(["sleep", "30"], start_new_session=True)
         self.addCleanup(child.wait)
         self.addCleanup(kill_group, child.pid)
-        with mock.patch.object(tools.os, "killpg", side_effect=PermissionError), \
-                mock.patch.object(child, "kill", side_effect=PermissionError), self.assertRaises(PermissionError):
+        with (
+            mock.patch.object(tools.os, "killpg", side_effect=PermissionError),
+            mock.patch.object(child, "kill", side_effect=PermissionError),
+            self.assertRaises(PermissionError),
+        ):
             tools.kill_session(child)
 
 
@@ -266,7 +272,8 @@ def stop_gate_mid_step(test: unittest.TestCase, signum: int, jobs: int) -> None:
         runner = subprocess.Popen(
             [sys.executable, "-c", RUNNER, str(pidfile), str(jobs)],
             env=dict(os.environ, PYTHONPATH=str(Path(godot_guard.__file__).parents[1])),
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         test.addCleanup(runner.kill)
         pid = wait_for_pid(pidfile)

@@ -43,8 +43,12 @@ def build_parser() -> argparse.ArgumentParser:
     gate_parser = commands.add_parser("gate", help="the quality gate")
     gate_parser.add_argument("--fast", action="store_true", help="format, lint, and check only")
     gate_parser.add_argument("--staged", action="store_true", help="select staged .gd files")
-    gate_parser.add_argument("--jobs", type=jobs_argument, metavar="N|auto",
-                             help="run steps in parallel on N workers, or auto; overrides gate.jobs")
+    gate_parser.add_argument(
+        "--jobs",
+        type=jobs_argument,
+        metavar="N|auto",
+        help="run steps in parallel on N workers, or auto; overrides gate.jobs",
+    )
     gate_parser.add_argument("files", nargs="*")
     commands.add_parser("init", help="scaffold config, hooks, and CI")
     return parser

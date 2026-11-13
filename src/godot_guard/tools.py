@@ -81,10 +81,14 @@ class Children:
             process = None
             try:
                 process = subprocess.Popen(
-                    command, cwd=cwd, env=env, start_new_session=True,
+                    command,
+                    cwd=cwd,
+                    env=env,
+                    start_new_session=True,
                     stdout=subprocess.PIPE if pipe else None,
                     stderr=subprocess.STDOUT if pipe else None,
-                    text=True, errors="replace",
+                    text=True,
+                    errors="replace",
                 )
                 self._live.add(process)
             finally:

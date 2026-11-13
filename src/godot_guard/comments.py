@@ -15,7 +15,9 @@ from dataclasses import dataclass
 DIRECTIVE = re.compile(
     r"^(!|-\*-|(es|ox|ts|style)lint|biome-|prettier-|istanbul |c8 |svelte-ignore|@ts-|global |"
     r"noqa|type:|pyright:|mypy:|pylint:|fmt:|isort:|ruff:|pragma|phpcs|@?phpstan|@?psalm|@codeCoverage|"
-    r"gdlint|warning_ignore|#?(end)?region\b|run:)", re.IGNORECASE)
+    r"gdlint|warning_ignore|#?(end)?region\b|run:)",
+    re.IGNORECASE,
+)
 REFERENCE = re.compile(r"^(see:?\s+)?(https?://\S+|[\w.-]*/[\w./#-]+|[A-Z][A-Z0-9]+-\d+)[.)]?$", re.IGNORECASE)
 SEPARATOR = re.compile(r"^[-=*#/_~+]{3,}$")
 LICENSE = re.compile(r"SPDX-License-Identifier|Copyright \(c\)|Copyright \d{4}|Licensed under", re.IGNORECASE)
@@ -80,10 +82,7 @@ def long_comments(source: str, cap: int) -> list[Comment]:
     lines = source.splitlines()
     comments = comment_runs(lines)
     first_code = first_code_line(lines, comments)
-    return [
-        c for c in comments
-        if c.prose > cap and c.end_line >= first_code and not LICENSE.search("\n".join(c.body))
-    ]
+    return [c for c in comments if c.prose > cap and c.end_line >= first_code and not LICENSE.search("\n".join(c.body))]
 
 
 def strip_comments(source: str) -> str:

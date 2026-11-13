@@ -84,20 +84,26 @@ class ComplexityCheckTest(unittest.TestCase):
 
     def test_analyzer_cannot_silently_omit_a_file(self):
         result = mock.Mock(returncode=0, stdout=json.dumps({"a.py": []}))
-        with mock.patch.object(check_complexity.subprocess, "run", return_value=result), \
-                self.assertRaisesRegex(ValueError, r"missing \['b.py'\], unexpected \[\]"):
+        with (
+            mock.patch.object(check_complexity.subprocess, "run", return_value=result),
+            self.assertRaisesRegex(ValueError, r"missing \['b.py'\], unexpected \[\]"),
+        ):
             check_complexity.measure("python", ["a.py", "b.py"])
 
     def test_analyzer_cannot_invent_a_file(self):
         result = mock.Mock(returncode=0, stdout=json.dumps({"a.py": [], "ghost.py": []}))
-        with mock.patch.object(check_complexity.subprocess, "run", return_value=result), \
-                self.assertRaisesRegex(ValueError, r"missing \[\], unexpected \['ghost.py'\]"):
+        with (
+            mock.patch.object(check_complexity.subprocess, "run", return_value=result),
+            self.assertRaisesRegex(ValueError, r"missing \[\], unexpected \['ghost.py'\]"),
+        ):
             check_complexity.measure("python", ["a.py"])
 
     def test_a_failed_analyzer_is_not_a_clean_report(self):
         result = mock.Mock(returncode=2, stdout=json.dumps({"a.py": []}), stderr="fatal scorer failure\n")
-        with mock.patch.object(check_complexity.subprocess, "run", return_value=result), \
-                self.assertRaisesRegex(RuntimeError, "exited 2: fatal scorer failure"):
+        with (
+            mock.patch.object(check_complexity.subprocess, "run", return_value=result),
+            self.assertRaisesRegex(RuntimeError, "exited 2: fatal scorer failure"),
+        ):
             check_complexity.measure("python", ["a.py"])
 
     def test_tracks_all_three_languages_without_path_exclusions(self):

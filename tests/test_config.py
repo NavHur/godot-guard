@@ -43,10 +43,14 @@ class ConfigTest(unittest.TestCase):
 
     def test_wrong_shapes_are_errors(self):
         cases = (
-            ("false\n", "the file must be a mapping"), ("[]\n", "the file must be a mapping"),
-            ("limits: false\n", "limits must be a mapping"), ("rules: []\n", "rules must be a mapping"),
-            ("gate: 0\n", "gate must be a mapping"), ("boundaries: false\n", "boundaries must be a list"),
-            ("paths: false\n", "paths must be a list of strings"), ("exclude: {}\n", "exclude must be a list of strings"),
+            ("false\n", "the file must be a mapping"),
+            ("[]\n", "the file must be a mapping"),
+            ("limits: false\n", "limits must be a mapping"),
+            ("rules: []\n", "rules must be a mapping"),
+            ("gate: 0\n", "gate must be a mapping"),
+            ("boundaries: false\n", "boundaries must be a list"),
+            ("paths: false\n", "paths must be a list of strings"),
+            ("exclude: {}\n", "exclude must be a list of strings"),
         )
         for text, message in cases:
             with self.assertRaises(config_module.ConfigError, msg=text) as caught:
@@ -57,7 +61,10 @@ class ConfigTest(unittest.TestCase):
         text = "paths: null\nlimits: ~\nrules:\n  long-comment: null\ngate:\n  smoke: null\nboundaries:\n"
         config = self.repo({}, text).config()
         self.assertEqual((config.paths, config.limits["cognitive"]), (["."], 8))
-        self.assertEqual((config.rules["long-comment"], config.gate["smoke"], config.boundaries), ("error", ["--quit-after", "3"], []))
+        self.assertEqual(
+            (config.rules["long-comment"], config.gate["smoke"], config.boundaries),
+            ("error", ["--quit-after", "3"], []),
+        )
         self.assertEqual(self.repo({}, "").config().paths, ["."])
 
     def test_duplicate_keys_are_errors(self):
@@ -112,7 +119,9 @@ class ConfigTest(unittest.TestCase):
         files = {"scripts/a.gd": "", "scripts/gen/b.gd": "", "addons/x/c.gd": "", "other/d.gd": "", ".hidden/e.gd": ""}
         repo = self.repo(files, "paths: [./scripts, addons]\nexclude: [scripts/gen]\n")
         self.assertEqual(repo.config().scanned_files(), ["addons/x/c.gd", "scripts/a.gd"])
-        self.assertEqual(self.repo(files, None).config().scanned_files(), ["other/d.gd", "scripts/a.gd", "scripts/gen/b.gd"])
+        self.assertEqual(
+            self.repo(files, None).config().scanned_files(), ["other/d.gd", "scripts/a.gd", "scripts/gen/b.gd"]
+        )
 
     def test_root_is_found_from_a_subdirectory(self):
         repo = self.repo({"scripts/a.gd": ""}, "paths: [scripts]\n")
@@ -136,16 +145,21 @@ class ConfigTest(unittest.TestCase):
             "    - script: res://tests/c.gd\n    - script: res://tests/d.gd\n      shards: 1\n"
             "    - script: res://tests/e.gd\n      shards: null\n"
         )
-        self.assertEqual(self.repo({}, text).config().gate["tests"], [
-            config_module.TestScript("res://tests/a.gd"),
-            config_module.TestScript("res://tests/b.gd", 3),
-            config_module.TestScript("res://tests/c.gd"),
-            config_module.TestScript("res://tests/d.gd", 1),
-            config_module.TestScript("res://tests/e.gd"),
-        ])
+        self.assertEqual(
+            self.repo({}, text).config().gate["tests"],
+            [
+                config_module.TestScript("res://tests/a.gd"),
+                config_module.TestScript("res://tests/b.gd", 3),
+                config_module.TestScript("res://tests/c.gd"),
+                config_module.TestScript("res://tests/d.gd", 1),
+                config_module.TestScript("res://tests/e.gd"),
+            ],
+        )
 
     def test_shards_one_is_kept_apart_from_no_shards(self):
-        plain, one = self.repo({}, "gate: {tests: [res://a.gd, {script: res://a.gd, shards: 1}]}\n").config().gate["tests"]
+        plain, one = (
+            self.repo({}, "gate: {tests: [res://a.gd, {script: res://a.gd, shards: 1}]}\n").config().gate["tests"]
+        )
         self.assertIsNone(plain.shards)
         self.assertEqual(one.shards, 1)
 
