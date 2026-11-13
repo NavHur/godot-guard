@@ -234,10 +234,14 @@ are never baselined.
 ## Development
 
 ```
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
+make format     # cargo fmt, ruff format
+make lint        # cargo clippy, ruff check
+make typecheck   # cargo check, ty check
+make test        # cargo test, python -m unittest
 ```
+
+The Python steps need ruff 0.17.3 and ty 0.0.94 on PATH and the `.venv` below. CI runs the same cargo flags,
+ruff and ty (the formatters with `--check`); clippy covers `cargo check` there.
 
 The Rust workspace is in `crates/`; [docs/rust-port.md](docs/rust-port.md)
 maps its crates, the parity tests, and releasing. The Python package in `src/`

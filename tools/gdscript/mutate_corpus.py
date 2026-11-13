@@ -12,9 +12,48 @@ import random
 import sys
 from pathlib import Path
 
-INSERTS = ["(", ")", "[", "]", "{", "}", '"', "'", '"""', "\t", " ", "    ", "\n", "\r", ":", ";", ",", "#",
-           "\\", "\\\n", "$", "%", "@", "^", "&", "é", "?", "`", "->", "func():", "func():\n\t", "r", "0x",
-           "1e", ".", "is not ", "not ", "await ", "\x00", "\x0c"]
+INSERTS = [
+    "(",
+    ")",
+    "[",
+    "]",
+    "{",
+    "}",
+    '"',
+    "'",
+    '"""',
+    "\t",
+    " ",
+    "    ",
+    "\n",
+    "\r",
+    ":",
+    ";",
+    ",",
+    "#",
+    "\\",
+    "\\\n",
+    "$",
+    "%",
+    "@",
+    "^",
+    "&",
+    "é",
+    "?",
+    "`",
+    "->",
+    "func():",
+    "func():\n\t",
+    "r",
+    "0x",
+    "1e",
+    ".",
+    "is not ",
+    "not ",
+    "await ",
+    "\x00",
+    "\x0c",
+]
 
 
 def mutate(text, rng):
@@ -22,7 +61,7 @@ def mutate(text, rng):
     kind = rng.randrange(7)
     if kind == 0 and text:
         at = rng.randrange(len(text))
-        return text[:at] + text[at + 1:]
+        return text[:at] + text[at + 1 :]
     if kind == 1:
         at = rng.randrange(len(text) + 1)
         return text[:at] + rng.choice(INSERTS) + text[at:]
@@ -59,7 +98,7 @@ def main():
     rng = random.Random(seed)
     for index in range(count):
         source = Path(rng.choice(files)).read_text(encoding="utf-8", errors="replace")
-        (out_dir / ("mutant_%05d.gd" % index)).write_bytes(mutate(source, rng).encode("utf-8"))
+        (out_dir / f"mutant_{index:05d}.gd").write_bytes(mutate(source, rng).encode("utf-8"))
 
 
 if __name__ == "__main__":

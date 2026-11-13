@@ -51,8 +51,10 @@ def lowered(name: str, setting: Setting) -> tuple[int, str]:
 
 
 def absent(names: list[str], line: int) -> tuple[int, str]:
-    message = (f"{len(names)} analyzer warnings default below error: add gdscript/warnings/NAME={ERROR} "
-               f"under [debug] for {', '.join(names)}")
+    message = (
+        f"{len(names)} analyzer warnings default below error: add gdscript/warnings/NAME={ERROR} "
+        f"under [debug] for {', '.join(names)}"
+    )
     return line, message
 
 
@@ -77,8 +79,9 @@ def disabled_directories(entries: str, line: int, config: Config) -> list[tuple[
     found = []
     for path, level in DIRECTORY_ENTRY.findall(entries):
         if level == "0" and not matches(path + "/", config.exclude):
-            message = (f"gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; "
-                       "remove that entry")
+            message = (
+                f"gdscript/warnings/directory_rules turns analyzer warnings off under res://{path}; remove that entry"
+            )
             found.append((line, message))
     return found
 
@@ -87,7 +90,9 @@ def findings(settings: dict[str, Setting], relaxed: list[str], header: int) -> l
     """(line, message) for warnings off, each required one set below error, and those left at a lower default."""
     found = disabled(settings)
     checked = [name for name in REQUIRED if name not in relaxed]
-    found += [lowered(name, settings[name]) for name in checked if name in settings and settings[name].value != str(ERROR)]
+    found += [
+        lowered(name, settings[name]) for name in checked if name in settings and settings[name].value != str(ERROR)
+    ]
     missing = [name for name in checked if name not in settings and REQUIRED[name] != ERROR]
     if missing:
         found.append(absent(missing, header))

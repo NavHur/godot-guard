@@ -19,3 +19,12 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 godot_guard = ["data/*.gd", "templates/*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+# The output templates are Rust full of braces; %-formatting avoids doubling each one in an f-string.
+"tools/gdscript/gen_tables.py" = ["UP031"]
+# The oracle scripts record whatever the reference gdtoolkit raises as the result the port must match.
+"tools/oracle/*.py" = ["BLE001"]

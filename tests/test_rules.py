@@ -39,12 +39,14 @@ class InterfaceTest(unittest.TestCase):
         self.assertEqual(surface.total, 11)
 
     def test_resource_chain_through_two_class_names_is_excluded(self):
-        repo = Repo({
-            "data/item.gd": fixtures.RESOURCE_BASE,
-            "data/weapon.gd": fixtures.RESOURCE_CHILD,
-            "data/sword.gd": fixtures.RESOURCE_GRANDCHILD,
-            "ui/wide.gd": fixtures.WIDE_NODE,
-        })
+        repo = Repo(
+            {
+                "data/item.gd": fixtures.RESOURCE_BASE,
+                "data/weapon.gd": fixtures.RESOURCE_CHILD,
+                "data/sword.gd": fixtures.RESOURCE_GRANDCHILD,
+                "ui/wide.gd": fixtures.WIDE_NODE,
+            }
+        )
         self.addCleanup(repo.cleanup)
         config = repo.config()
         surfaces = Surfaces(repo.root)
@@ -75,7 +77,9 @@ class BoundaryTest(unittest.TestCase):
             "    forbid: ['\\bSprite3D\\b', 'res://scenes/']\n"
             "    message: simulation code must not reference presentation\n"
         )
-        repo = Repo({"scripts/simulation/sim.gd": fixtures.BOUNDARY, "scripts/ui/view.gd": fixtures.BOUNDARY}, config_text)
+        repo = Repo(
+            {"scripts/simulation/sim.gd": fixtures.BOUNDARY, "scripts/ui/view.gd": fixtures.BOUNDARY}, config_text
+        )
         self.addCleanup(repo.cleanup)
         config = repo.config()
         surfaces = Surfaces(repo.root)
@@ -91,7 +95,9 @@ class BoundaryTest(unittest.TestCase):
             "\tvar b = '#' # Sprite3D in a comment\n\tvar c = get_node(&\"x#\") as Sprite3D\n"
             '\tvar d = "\\"#" + str(Sprite3D)\n\tvar e = """\n# text\n"""  # Sprite3D\n\treturn Sprite3D\n'
         )
-        repo = Repo({"sim.gd": source}, "boundaries:\n  - name: domain\n    paths: ['**']\n    forbid: ['\\bSprite3D\\b']\n")
+        repo = Repo(
+            {"sim.gd": source}, "boundaries:\n  - name: domain\n    paths: ['**']\n    forbid: ['\\bSprite3D\\b']\n"
+        )
         self.addCleanup(repo.cleanup)
         hits = [p for p in analyze(repo.config(), "sim.gd", Surfaces(repo.root)).problems if p.rule == "boundary"]
         self.assertEqual([p.line for p in hits], [5, 7, 8, 12])

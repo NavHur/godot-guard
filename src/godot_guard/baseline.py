@@ -78,7 +78,9 @@ class Judge:
         if item.value <= allowed:
             if recorded is None:
                 return []
-            message = f"{item.label} is within the limit {allowed}: remove its baseline entry with `godot-guard baseline`"
+            message = (
+                f"{item.label} is within the limit {allowed}: remove its baseline entry with `godot-guard baseline`"
+            )
             return [Problem(item.path, item.line, message, item.rule, level)]
         if recorded is None or item.value > recorded:
             return self.over(item, allowed, recorded, level)
@@ -104,7 +106,8 @@ class Judge:
         present, unparsed = measured(results)
         keys = [(rule, key) for rule, key, _ in entries(self.data) if self.config.level(rule) != "off"]
         return [
-            self.gone(rule, key) for rule, key in keys
+            self.gone(rule, key)
+            for rule, key in keys
             if (rule, key) not in present and in_scope(rule, key, subset, unparsed)
         ]
 

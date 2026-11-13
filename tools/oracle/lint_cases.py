@@ -40,7 +40,7 @@ def main():
             if code in seen:
                 continue
             seen.add(code)
-            path = out_dir / "{}_{:03d}.gd".format(test_file.stem, len(seen))
+            path = out_dir / f"{test_file.stem}_{len(seen):03d}.gd"
             path.write_bytes(code.encode("utf-8"))
             written += 1
     print(written)

@@ -11,11 +11,24 @@ from .complexity import first_name, is_tree
 from .interface import is_export_annotation
 
 FRAME_FUNCTIONS = frozenset({"_process", "_physics_process"})
-HOT_FUNCTIONS = FRAME_FUNCTIONS | {"_input", "_unhandled_input", "_unhandled_key_input", "_gui_input", "_shortcut_input"}
-LOOKUP_CALLS = frozenset({
-    "get_node", "get_node_or_null", "find_child", "find_children", "find_parent", "get_nodes_in_group",
-    "get_first_node_in_group",
-})
+HOT_FUNCTIONS = FRAME_FUNCTIONS | {
+    "_input",
+    "_unhandled_input",
+    "_unhandled_key_input",
+    "_gui_input",
+    "_shortcut_input",
+}
+LOOKUP_CALLS = frozenset(
+    {
+        "get_node",
+        "get_node_or_null",
+        "find_child",
+        "find_children",
+        "find_parent",
+        "get_nodes_in_group",
+        "get_first_node_in_group",
+    }
+)
 NODE_PATHS = {"get_node": "$path", "unique_node_path": "%name"}
 LITERALS = {"array": "an array literal", "dict": "a dictionary literal"}
 RUNNERS = frozenset({"SceneTree", "MainLoop"})
@@ -41,7 +54,7 @@ def called_name(node) -> str:
     if node.data == "standalone_call":
         return first_name(node)
     target = node.children[0] if node.data == "getattr_call" else None
-    if not (is_tree(target) and target.data == "getattr"):
+    if getattr(target, "data", None) != "getattr":
         return ""
     return last_attribute_name(target)
 
@@ -58,14 +71,20 @@ def hot_hit(node, function: str) -> tuple[str, str] | None:
         what = NODE_PATHS.get(node.data) or f"{called}()"
         return "lookup-in-hot-path", f"{what} inside {function}(): resolve it once into an @onready var or in _ready()"
     if called == "load":
-        return "load-in-hot-path", f"load() inside {function}() reads the resource each call: preload it or load it once"
+        return (
+            "load-in-hot-path",
+            f"load() inside {function}() reads the resource each call: preload it or load it once",
+        )
     return allocation_hit(node, called, function)
 
 
 def allocation_hit(node, called: str, function: str) -> tuple[str, str] | None:
     what = LITERALS.get(node.data) or (".new()" if called == "new" else "")
     if what and function in FRAME_FUNCTIONS:
-        return "per-frame-allocation", f"{what} inside {function}() allocates every frame; reuse one if it does not change"
+        return (
+            "per-frame-allocation",
+            f"{what} inside {function}() allocates every frame; reuse one if it does not change",
+        )
     return None
 
 
@@ -130,8 +149,11 @@ def exported_variables(body) -> list:
 def private_exports(tree) -> list[tuple[int, str]]:
     variables = [v for body in (tree, *tree.find_data("class_def")) for v in exported_variables(body)]
     names = [(v.meta.line, first_name(v.children[0])) for v in variables]
-    return [(line, f"@export on {name}: the underscore marks it private; drop one of them")
-            for line, name in names if name.startswith("_")]
+    return [
+        (line, f"@export on {name}: the underscore marks it private; drop one of them")
+        for line, name in names
+        if name.startswith("_")
+    ]
 
 
 def source_text(node) -> str:

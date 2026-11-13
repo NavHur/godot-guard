@@ -81,10 +81,14 @@ class Children:
             process = None
             try:
                 process = subprocess.Popen(
-                    command, cwd=cwd, env=env, start_new_session=True,
+                    command,
+                    cwd=cwd,
+                    env=env,
+                    start_new_session=True,
                     stdout=subprocess.PIPE if pipe else None,
                     stderr=subprocess.STDOUT if pipe else None,
-                    text=True, errors="replace",
+                    text=True,
+                    errors="replace",
                 )
                 self._live.add(process)
             finally:
@@ -167,6 +171,7 @@ def run_process(command: list[str], cwd: Path | None, env: dict | None, echo: Ec
     process = CHILDREN.start(command, cwd, env, pipe=echo is not None)
     try:
         if echo is not None:
+            assert process.stdout is not None, "start(pipe=True) pipes stdout"
             for line in process.stdout:
                 echo(line)
         return process.wait()

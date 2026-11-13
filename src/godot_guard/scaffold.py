@@ -68,7 +68,9 @@ def init(root: Path) -> int:
     for relative, text in planned(root):
         write_new(root, relative, text)
     add_requirement(root)
-    result = subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=root, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "config", "core.hooksPath", ".githooks"], cwd=root, capture_output=True, text=True, check=False
+    )
     if result.returncode == 0:
         print("ran git config core.hooksPath .githooks")
     else:

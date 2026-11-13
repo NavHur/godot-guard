@@ -34,7 +34,7 @@ from gdtoolkit.parser import parser
 from lark.exceptions import UnexpectedInput
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from dump_tree import node  # noqa: E402  pylint: disable=wrong-import-position
+from dump_tree import node
 
 PUNCTUATION = re.compile(r"[^\w\"']")
 FORMATTED_TREES = False
@@ -44,8 +44,11 @@ VARIANTS = None
 def lexed(code):
     """The source's tokens, whitespace included, or None when lark's basic lexer can't split it."""
     try:
-        return [t for t in parser._parser_with_metadata.lex(code + "\n", dont_ignore=True)
-                if t.type not in ("_INDENT", "_DEDENT")]
+        return [
+            t
+            for t in parser._parser_with_metadata.lex(code + "\n", dont_ignore=True)
+            if t.type not in ("_INDENT", "_DEDENT")
+        ]
     except UnexpectedInput:
         return None
 
@@ -59,8 +62,8 @@ def _rewrite(code, rule):
     out, previous, cursor = [], None, 0
     for index, token in enumerate(tokens):
         following = tokens[index + 1] if index + 1 < len(tokens) else None
-        out.append(code[cursor:token.start_pos])
-        out.append(rule(previous, token, following, code[token.start_pos:token.end_pos]))
+        out.append(code[cursor : token.start_pos])
+        out.append(rule(previous, token, following, code[token.start_pos : token.end_pos]))
         previous = token
         cursor = token.end_pos
     return "".join(out) + code[cursor:]
@@ -119,8 +122,14 @@ def variants(code):
 def _safety(code, expected, line_length, tree, comments, spaces):
     """check_formatting_safety's verdict on `expected`: "ok", or the violation's name."""
     try:
-        check_formatting_safety(code, expected, line_length, given_code_parse_tree=tree,
-                                given_code_comment_parse_tree=comments, spaces_for_indent=spaces)
+        check_formatting_safety(
+            code,
+            expected,
+            line_length,
+            given_code_parse_tree=tree,
+            given_code_comment_parse_tree=comments,
+            spaces_for_indent=spaces,
+        )
         return "ok"
     except Exception as exc:  # pylint: disable=broad-except
         return type(exc).__name__
@@ -129,22 +138,36 @@ def _safety(code, expected, line_length, tree, comments, spaces):
 def _formatted_trees(expected):
     """The trees of the formatted code, or None when it doesn't parse."""
     try:
-        return {"tree": node(parser.parse(expected, gather_metadata=True)),
-                "comments": node(parser.parse_comments(expected))}
+        return {
+            "tree": node(parser.parse(expected, gather_metadata=True)),
+            "comments": node(parser.parse_comments(expected)),
+        }
     except Exception:  # pylint: disable=broad-except
         return None
 
 
 def case(path, variant, code, line_length, spaces):
-    record = {"id": f"{path}#{variant}", "path": path, "variant": variant, "line_length": line_length,
-              "spaces": spaces, "code": code, "tree": None, "comments": None, "expected": None,
-              "error": None, "safety": None, "formatted": None}
+    record = {
+        "id": f"{path}#{variant}",
+        "path": path,
+        "variant": variant,
+        "line_length": line_length,
+        "spaces": spaces,
+        "code": code,
+        "tree": None,
+        "comments": None,
+        "expected": None,
+        "error": None,
+        "safety": None,
+        "formatted": None,
+    }
     try:
         tree = parser.parse(code, gather_metadata=True)
         comments = parser.parse_comments(code)
         record["tree"], record["comments"] = node(tree), node(comments)
-        expected = format_code(code, line_length, spaces_for_indent=spaces,
-                               parse_tree=tree, comment_parse_tree=comments)
+        expected = format_code(
+            code, line_length, spaces_for_indent=spaces, parse_tree=tree, comment_parse_tree=comments
+        )
     except Exception as exc:  # pylint: disable=broad-except
         record["error"] = type(exc).__name__
         return record

@@ -72,8 +72,13 @@ def problems_of(config: Config, results: list[FileResult], subset: set[str] | No
     return problems
 
 
-def check(config: Config, files: list[str] | None = None, surfaces: Surfaces | None = None,
-          as_json: bool = False, echo: Echo | None = None) -> int:
+def check(
+    config: Config,
+    files: list[str] | None = None,
+    surfaces: Surfaces | None = None,
+    as_json: bool = False,
+    echo: Echo | None = None,
+) -> int:
     """Run the rules on `files` (every scanned script and project.godot when None); 1 on any error.
 
     `surfaces` is the Resource map, read from the root's scripts when None. Output goes to `echo`, or stdout.
@@ -97,7 +102,10 @@ def print_text(paths: list[str], problems: list[Problem], echo: Echo | None = No
         write_line(echo, f"{problem.path}:{problem.line}: {prefix}{problem.message} ({problem.rule})")
     errors = sum(1 for p in problems if p.level == "error")
     warnings = len(problems) - errors
-    write_line(echo, f"godot-guard check: {plural(errors, 'error')}, {plural(warnings, 'warning')}, {plural(len(paths), 'file')}")
+    write_line(
+        echo,
+        f"godot-guard check: {plural(errors, 'error')}, {plural(warnings, 'warning')}, {plural(len(paths), 'file')}",
+    )
 
 
 def report(config: Config, paths: list[str], problems: list[Problem]) -> dict:
@@ -109,8 +117,7 @@ def report(config: Config, paths: list[str], problems: list[Problem]) -> dict:
         "levels": dict(config.rules),
         "files": paths,
         "problems": [
-            {"path": p.path, "line": p.line, "rule": p.rule, "level": p.level, "message": p.message}
-            for p in problems
+            {"path": p.path, "line": p.line, "rule": p.rule, "level": p.level, "message": p.message} for p in problems
         ],
     }
 

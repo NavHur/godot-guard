@@ -30,9 +30,18 @@ class ComplexityTest(unittest.TestCase):
             "\tvar b = func named(): return 3\n\tvar c = func(): return 4\n\n\nclass Inner:\n\tvar d = func(): return 5\n"
         )
         names = [f.name for f in complexity.score(tree(source))]
-        self.assertEqual(names, [
-            "<lambda#1>", "f", "f.<lambda#1>", "f.<lambda#1>.<lambda#1>", "f.named", "f.<lambda#2>", "Inner.<lambda#1>",
-        ])
+        self.assertEqual(
+            names,
+            [
+                "<lambda#1>",
+                "f",
+                "f.<lambda#1>",
+                "f.<lambda#1>.<lambda#1>",
+                "f.named",
+                "f.<lambda#2>",
+                "Inner.<lambda#1>",
+            ],
+        )
 
     def test_nested_ternary_reports_outermost_once(self):
         self.assertEqual(complexity.nested_ternaries(tree(fixtures.NESTED_TERNARY)), [6, 7, 8])
@@ -54,7 +63,7 @@ class ComplexityTest(unittest.TestCase):
         self.assertEqual(self.scores("a && b || c"), (2, 3))
         self.assertEqual(self.scores("a && b || c && d"), (3, 4))
 
-    def scores(self, condition: str) -> tuple[int, int]:
+    def scores(self, condition: str) -> tuple[int | None, int]:
         source = f"func f(a, b, c, d):\n\tvar x = {condition}\n"
         (function,) = complexity.score(tree(source))
         return function.cognitive, function.cyclomatic

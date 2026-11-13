@@ -13,9 +13,11 @@ from godot_guard.cli import main
 from .helpers import Repo, captured
 
 CONFIG = "exclude: [vendor]\nlimits:\n  cognitive: 2\n  comment-lines: 3\nrules:\n  cyclomatic-complexity: warn\n  nested-ternary: off\n"
-BUSY = "extends Node\n\n\nfunc busy(x: int) -> int:\n" + "".join(
-    f"\tif x == {n}:\n\t\treturn {n}\n" for n in range(4)
-) + "\treturn -1\n"
+BUSY = (
+    "extends Node\n\n\nfunc busy(x: int) -> int:\n"
+    + "".join(f"\tif x == {n}:\n\t\treturn {n}\n" for n in range(4))
+    + "\treturn -1\n"
+)
 
 
 class CheckJsonTest(unittest.TestCase):
@@ -35,17 +37,23 @@ class CheckJsonTest(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertEqual(report["version"], 1)
         self.assertEqual(report["root"], str(self.repo.root))
-        self.assertEqual(
-            report["limits"], {"cognitive": 2, "cyclomatic": 16, "comment-lines": 3, "inputs": 8}
-        )
+        self.assertEqual(report["limits"], {"cognitive": 2, "cyclomatic": 16, "comment-lines": 3, "inputs": 8})
         self.assertEqual(report["levels"]["cyclomatic-complexity"], "warn")
         self.assertEqual(report["levels"]["nested-ternary"], "off")
         self.assertEqual(report["levels"]["long-comment"], "error")
         self.assertEqual(report["files"], ["a.gd", "b.gd"])
-        self.assertEqual(report["problems"], [{
-            "path": "a.gd", "line": 4, "rule": "cognitive-complexity", "level": "error",
-            "message": "busy has cognitive complexity 4 (max 2)",
-        }])
+        self.assertEqual(
+            report["problems"],
+            [
+                {
+                    "path": "a.gd",
+                    "line": 4,
+                    "rule": "cognitive-complexity",
+                    "level": "error",
+                    "message": "busy has cognitive complexity 4 (max 2)",
+                }
+            ],
+        )
 
     def test_problems_match_the_text_output(self):
         self.repo.write("d.gd", "extends Node\n\n\nfunc f(a, b):\n\treturn 1 if a else (2 if b else 3)\n")
@@ -76,10 +84,13 @@ class CheckJsonTest(unittest.TestCase):
         status, report, _ = self.run_json([str(self.repo.root / "a.gd")])
         self.assertEqual(status, 1)
         self.assertEqual(report["files"], ["a.gd"])
-        self.assertEqual([(p["path"], p["line"], p["rule"]) for p in report["problems"]], [
-            (".godot-guard-baseline.json", 4, "cognitive-complexity"),
-            ("a.gd", 4, "cognitive-complexity"),
-        ])
+        self.assertEqual(
+            [(p["path"], p["line"], p["rule"]) for p in report["problems"]],
+            [
+                (".godot-guard-baseline.json", 4, "cognitive-complexity"),
+                ("a.gd", 4, "cognitive-complexity"),
+            ],
+        )
         self.assertIn("below its baseline 5", report["problems"][1]["message"])
 
     def test_skipped_arguments_stay_on_stderr(self):

@@ -8,8 +8,11 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
+import yaml.composer
+import yaml.constructor
 
 from .godot_warnings import REQUIRED
 from .patterns import ADVISORY as PATTERN_ADVISORY
@@ -20,7 +23,7 @@ BASELINE_NAME = ".godot-guard-baseline.json"
 LEVELS = ("error", "warn", "off")
 BASELINED = ("cognitive-complexity", "cyclomatic-complexity", "long-comment", "interface-cap", *COUNTED)
 ADVISORY = ("nested-ternary", *PATTERN_ADVISORY)
-DEFAULTS = {
+DEFAULTS: dict[str, Any] = {
     "paths": ["."],
     "exclude": ["addons/**", ".godot/**"],
     "limits": {"cognitive": 8, "cyclomatic": 16, "comment-lines": 2, "inputs": 8},
@@ -288,7 +291,10 @@ def validate(config: Config) -> None:
 
 def validate_limits(limits: dict[str, object]) -> None:
     for key, value in limits.items():
-        expect(isinstance(value, int) and not isinstance(value, bool) and value >= 0, f"limits.{key} must be a whole number")
+        expect(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0,
+            f"limits.{key} must be a whole number",
+        )
 
 
 def validate_gate(gate: dict) -> None:

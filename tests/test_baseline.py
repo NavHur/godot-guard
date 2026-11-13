@@ -101,7 +101,7 @@ class BaselineTest(unittest.TestCase):
     def test_unparsable_file_keeps_its_function_entries(self):
         self.record({"a.gd::busy": 4, "b.gd::other": 3})
         self.repo.write("b.gd", "func other(:\n")
-        status, output = captured(check, self.config)
+        _status, output = captured(check, self.config)
         self.assertIn("(parse-error)", output)
         self.assertNotIn("no longer exists", output)
         captured(update_baseline, self.config)
@@ -151,9 +151,13 @@ class FunctionKeyTest(unittest.TestCase):
         self.assertIn("a.gd:15: f.<lambda#2> has cyclomatic complexity 4 (max 2)", output)
         self.assertNotIn("<lambda#1>", output)
         self.assertEqual(captured(update_baseline, repo.config(), init=True, force=True)[0], 0)
-        self.assertEqual(baseline.load(config.baseline_path)["cyclomatic-complexity"], {
-            "a.gd::f.<lambda#1>": 5, "a.gd::f.<lambda#2>": 4,
-        })
+        self.assertEqual(
+            baseline.load(config.baseline_path)["cyclomatic-complexity"],
+            {
+                "a.gd::f.<lambda#1>": 5,
+                "a.gd::f.<lambda#2>": 4,
+            },
+        )
 
     def test_repeated_names_are_numbered(self):
         source = "extends Node\n\n\nfunc f():\n\tpass\n\n\nfunc f():\n\tpass\n"
