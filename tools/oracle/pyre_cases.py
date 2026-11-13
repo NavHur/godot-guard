@@ -47,7 +47,8 @@ def main():
     defaults = [value for value in DEFAULT_CONFIG.values() if isinstance(value, str)]
     patterns = list(dict.fromkeys(defaults + HEXSTEAD + TRICKY))
     lines = [json.dumps(case(pattern), ensure_ascii=False) for pattern in patterns]
-    sys.stdout.write('{"names": %s,\n"cases": [\n%s\n]}\n' % (json.dumps(NAMES), ",\n".join(lines)))
+    body = ",\n".join(lines)
+    sys.stdout.write(f'{{"names": {json.dumps(NAMES)},\n"cases": [\n{body}\n]}}\n')
 
 
 if __name__ == "__main__":

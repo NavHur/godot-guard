@@ -127,7 +127,7 @@ def function_items(path: str, functions: list[complexity.Function]) -> list[Item
 def tree_rules(result: FileResult, source: str) -> None:
     try:
         tree = parse_tree(source)
-    except Exception as error:  # lark raises many parse error types
+    except Exception as error:  # noqa: BLE001 - lark raises many parse error types
         result.parsed = False
         first = str(error).splitlines()[0] if str(error) else type(error).__name__
         result.problems.append(Problem(result.path, error_line(error), f"cannot parse: {first}", "parse-error"))

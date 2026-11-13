@@ -101,7 +101,7 @@ class BaselineTest(unittest.TestCase):
     def test_unparsable_file_keeps_its_function_entries(self):
         self.record({"a.gd::busy": 4, "b.gd::other": 3})
         self.repo.write("b.gd", "func other(:\n")
-        status, output = captured(check, self.config)
+        _status, output = captured(check, self.config)
         self.assertIn("(parse-error)", output)
         self.assertNotIn("no longer exists", output)
         captured(update_baseline, self.config)

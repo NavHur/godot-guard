@@ -24,7 +24,7 @@ PREAMBLE = re.compile(r"^(extends\b|class_name\b|@tool\b|@icon\b|##|$)")
 CODE_TOKEN = re.compile(
     r'"""(?:\\.|[^\\])*?(?:"""|\Z)|\'\'\'(?:\\.|[^\\])*?(?:\'\'\'|\Z)'
     r'|"(?:\\.|[^"\\\n])*(?:"|$)|\'(?:\\.|[^\'\\\n])*(?:\'|$)|#[^\n]*',
-    re.M | re.S,
+    re.MULTILINE | re.DOTALL,
 )
 
 

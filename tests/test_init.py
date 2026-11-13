@@ -30,7 +30,7 @@ class InitTest(unittest.TestCase):
         self.assertIn("gate --fast --staged", (root / ".githooks" / "pre-commit").read_text())
         self.assertIn("version: 4.7.1", (root / ".github" / "workflows" / "quality.yml").read_text())
         self.assertEqual((root / "tools" / "requirements-lint.txt").read_text(), f"gdtoolkit==4.5.0\n{REQUIREMENT}\n")
-        hooks = subprocess.run(["git", "config", "core.hooksPath"], cwd=root, capture_output=True, text=True)
+        hooks = subprocess.run(["git", "config", "core.hooksPath"], cwd=root, capture_output=True, text=True, check=True)
         self.assertEqual(hooks.stdout.strip(), ".githooks")
         self.assertIn("ran git config core.hooksPath .githooks", output)
         status, output = captured(init, root)
@@ -68,7 +68,7 @@ class HookTest(unittest.TestCase):
         environment.pop("HOST_CHECK_ACTIVE", None)
         if active is not None:
             environment["HOST_CHECK_ACTIVE"] = active
-        status = subprocess.run(["sh", str(TEMPLATES / name)], cwd=self.root, env=environment).returncode
+        status = subprocess.run(["sh", str(TEMPLATES / name)], cwd=self.root, env=environment, check=False).returncode
         return status, self.log.read_text().splitlines()
 
     def test_hooks_queue_through_host_check(self):

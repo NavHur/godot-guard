@@ -16,9 +16,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from dump_tree import error, node  # noqa: E402
-from gdtoolkit.parser import parser  # noqa: E402
-from godot_guard import complexity, patterns  # noqa: E402
+from dump_tree import error, node
+from gdtoolkit.parser import parser
+
+from godot_guard import complexity, patterns
 
 
 def rules(tree):

@@ -112,7 +112,7 @@ def record_if_exported(surface: Surface, line: str, annotations: list[str]) -> N
 def parse(path: str, source: str) -> Surface:
     surface = Surface(path)
     pending: list[str] = []
-    for match in re.finditer(r"^(?P<line>\S.*)$", source, re.M):
+    for match in re.finditer(r"^(?P<line>\S.*)$", source, re.MULTILINE):
         line = match.group("line")
         if line.startswith("#"):
             continue

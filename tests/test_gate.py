@@ -11,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from godot_guard import config as config_module, gate as gate_module
+from godot_guard import config as config_module
+from godot_guard import gate as gate_module
 from godot_guard.cli import format_files, main
 from godot_guard.tools import ToolError, godot, run_godot
 

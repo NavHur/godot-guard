@@ -34,7 +34,7 @@ from gdtoolkit.parser import parser
 from lark.exceptions import UnexpectedInput
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from dump_tree import node  # noqa: E402  pylint: disable=wrong-import-position
+from dump_tree import node
 
 PUNCTUATION = re.compile(r"[^\w\"']")
 FORMATTED_TREES = False

@@ -59,7 +59,7 @@ def main():
     rng = random.Random(seed)
     for index in range(count):
         source = Path(rng.choice(files)).read_text(encoding="utf-8", errors="replace")
-        (out_dir / ("mutant_%05d.gd" % index)).write_bytes(mutate(source, rng).encode("utf-8"))
+        (out_dir / f"mutant_{index:05d}.gd").write_bytes(mutate(source, rng).encode("utf-8"))
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from . import __version__, config as config_module
+from . import __version__
+from . import config as config_module
 from .check import check, select, update_baseline
 from .config import AUTO
 from .gate import gate
@@ -54,7 +55,7 @@ def format_files(config, files: list[str]) -> int:
     if not paths:
         print("godot-guard format: no GDScript files selected")
         return 0
-    return subprocess.run([gdtoolkit("gdformat"), *paths], cwd=config.root).returncode
+    return subprocess.run([gdtoolkit("gdformat"), *paths], cwd=config.root, check=False).returncode
 
 
 def run_gate(config, args: argparse.Namespace) -> int:

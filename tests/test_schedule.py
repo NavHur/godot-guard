@@ -123,22 +123,19 @@ class IsolationTest(unittest.TestCase):
         return Step("tests", TEST, lambda echo, env: 0, godot=True)
 
     def test_godot_steps_get_a_fresh_data_dir_that_is_removed_afterwards(self):
-        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": "/inherited"}):
-            with isolation(self.godot_step()) as env:
-                data = Path(env["XDG_DATA_HOME"])
-                self.assertTrue(data.is_dir())
-                self.assertNotEqual(str(data), "/inherited")
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": "/inherited"}), isolation(self.godot_step()) as env:
+            data = Path(env["XDG_DATA_HOME"])
+            self.assertTrue(data.is_dir())
+            self.assertNotEqual(str(data), "/inherited")
         self.assertFalse(data.exists())
 
     def test_macos_points_home_at_the_data_dir_too(self):
-        with mock.patch.object(schedule.sys, "platform", "darwin"):
-            with isolation(self.godot_step()) as env:
-                self.assertEqual(env["HOME"], env["XDG_DATA_HOME"])
+        with mock.patch.object(schedule.sys, "platform", "darwin"), isolation(self.godot_step()) as env:
+            self.assertEqual(env["HOME"], env["XDG_DATA_HOME"])
 
     def test_other_platforms_keep_home(self):
-        with mock.patch.object(schedule.sys, "platform", "linux"):
-            with isolation(self.godot_step()) as env:
-                self.assertEqual(env["HOME"], os.environ["HOME"])
+        with mock.patch.object(schedule.sys, "platform", "linux"), isolation(self.godot_step()) as env:
+            self.assertEqual(env["HOME"], os.environ["HOME"])
 
     def test_other_steps_get_no_environment(self):
         with isolation(fake("lint")) as env:
@@ -195,9 +192,9 @@ class InterruptTest(unittest.TestCase):
             signal.raise_signal(signal.SIGTERM)
             return process
 
-        with mock.patch.object(tools.subprocess, "Popen", popen_then_signal):
-            with interruptible(), self.assertRaises(SystemExit) as caught:
-                CHILDREN.start(["sleep", "30"], None, None, pipe=False)
+        with mock.patch.object(tools.subprocess, "Popen", popen_then_signal), \
+                interruptible(), self.assertRaises(SystemExit) as caught:
+            CHILDREN.start(["sleep", "30"], None, None, pipe=False)
         self.assertEqual(caught.exception.code, 128 + signal.SIGTERM)
         self.assertEqual(spawned[0].wait(timeout=5), -signal.SIGKILL)
         with self.assertRaises(ProcessLookupError):
@@ -255,9 +252,8 @@ class KillSessionTest(unittest.TestCase):
         self.addCleanup(child.wait)
         self.addCleanup(kill_group, child.pid)
         with mock.patch.object(tools.os, "killpg", side_effect=PermissionError), \
-                mock.patch.object(child, "kill", side_effect=PermissionError):
-            with self.assertRaises(PermissionError):
-                tools.kill_session(child)
+                mock.patch.object(child, "kill", side_effect=PermissionError), self.assertRaises(PermissionError):
+            tools.kill_session(child)
 
 
 def stop_gate_mid_step(test: unittest.TestCase, signum: int, jobs: int) -> None:
